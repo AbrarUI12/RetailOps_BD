@@ -65,6 +65,13 @@ async def logout(
     response.delete_cookie(REFRESH_COOKIE, path="/api/v1/auth")
 
 
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(response: Response, session: SessionDep, user: CurrentUser) -> None:
+    """Sign out of every device, e.g. after a lost phone."""
+    await AuthService(session).logout_everywhere(user)
+    response.delete_cookie(REFRESH_COOKIE, path="/api/v1/auth")
+
+
 @router.get("/me", response_model=UserView)
-async def me(user: CurrentUser) -> UserView:
-    return user_view(user)
+async def me(user: CurrentUser, session: SessionDep) -> UserView:
+    return await user_view(session, user)

@@ -7,15 +7,19 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { useAuthStore } from "../stores/authStore";
 
+// Demo credentials are pre-filled only in development or the public demo build.
+const DEMO_MODE = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === "true";
+
 export function LoginPage() {
   const { user, login } = useAuthStore();
-  const [email, setEmail] = useState("owner@retailopsbd.com");
-  const [password, setPassword] = useState("RetailOps123!");
+  const [email, setEmail] = useState(DEMO_MODE ? "owner@retailopsbd.com" : "");
+  const [password, setPassword] = useState(DEMO_MODE ? "RetailOps123!" : "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  if (user) return <Navigate replace to="/dashboard" />;
+  const from = (location.state as { from?: string } | null)?.from ?? "/dashboard";
+  if (user) return <Navigate replace to={from} />;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -23,7 +27,7 @@ export function LoginPage() {
     setError("");
     try {
       await login(email, password);
-      void navigate((location.state as { from?: string } | null)?.from ?? "/dashboard", { replace: true });
+      void navigate(from, { replace: true });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to sign in");
     } finally {
@@ -46,7 +50,7 @@ export function LoginPage() {
           <Input autoComplete="current-password" label="Password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
           {error ? <div className="form-alert" role="alert">{error}</div> : null}
           <Button disabled={busy} size="lg" type="submit"><LockKeyhole size={17} /> {busy ? "Signing in…" : "Sign in securely"}</Button>
-          <small className="demo-credential">Demo credentials are pre-filled.</small>
+          {DEMO_MODE ? <small className="demo-credential">Demo workspace: credentials are pre-filled. Try cashier@retailopsbd.com for the cashier view.</small> : null}
         </form>
       </section>
     </main>

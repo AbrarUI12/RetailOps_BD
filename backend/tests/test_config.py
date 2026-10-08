@@ -23,7 +23,7 @@ def test_frontend_host_becomes_the_https_origin() -> None:
 
 def test_production_rejects_unsafe_defaults() -> None:
     with pytest.raises(ValidationError) as error:
-        Settings.model_validate({"APP_ENV": "production", "debug": True})
+        Settings.model_validate({"APP_ENV": "production", "debug": True, "secret_key": "short"})
 
     message = str(error.value)
     assert "APP_SECRET_KEY" in message

@@ -62,7 +62,10 @@ export async function downloadFile(path: string, filename: string) {
 export interface User {
   id: string;
   organization_id: string;
+  organization_name: string;
   branch_id: string;
+  branch_name: string;
+  branch_address?: string | null;
   email: string;
   full_name: string;
   role: string;
@@ -108,4 +111,30 @@ export interface InventoryItem {
   available_quantity: number;
   reorder_level: number;
   stock_status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+}
+
+export interface WorkspaceCounts {
+  orders_to_action: number | null;
+  low_stock: number | null;
+  open_conflicts: number | null;
+  unread_notifications: number;
+}
+
+export interface SearchHit {
+  kind: "product" | "order" | "customer" | "sale" | "shipment";
+  id: string;
+  title: string;
+  subtitle: string;
+  to: string;
+}
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  message: string;
+  read_at: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
 }

@@ -59,6 +59,10 @@ services:
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
+    envVars:
+      # Public portfolio demo: pre-fill the demo login. Remove for a real tenant.
+      - key: VITE_DEMO_MODE
+        value: "true"
     autoDeployTrigger: checksPass
     routes:
       - type: rewrite

@@ -23,7 +23,8 @@ The OpenAPI schema and interactive docs are served at `/docs`. Business resource
 
 | Area | Endpoint | Notes |
 | --- | --- | --- |
-| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` | login is rate-limited to 10 attempts per minute per client IP |
+| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/logout-all`, `GET /auth/me` | Login is rate-limited to 10 attempts per minute per client IP. Refresh tokens rotate, and reusing one revokes the whole session family. Logout invalidates access tokens already issued |
+| Workspace | `GET /workspace/counts`, `GET /search?q=` | Badge counts and command-palette search, limited to what the role may open |
 | Products | `GET/POST /products`, `GET/PATCH /products/{id}`, `GET /products/barcode/{barcode}` | variants are nested |
 | Inventory | `GET /inventory`, `POST /inventory/adjustments`, `GET /inventory/movements`, `GET /inventory/low-stock` | adjustments write ledger movements |
 | POS | `POST /pos/sales`, `GET /pos/sales/{id}` | idempotent on `client_transaction_id`. Never sells below available stock. `SPLIT` takes a `payments` list; only cash can produce change; payment rows store the amount applied |
@@ -34,4 +35,4 @@ The OpenAPI schema and interactive docs are served at `/docs`. Business resource
 | Returns | `GET /returns`, `POST /returns` | References exactly one sale or one shipped order. Every line needs a `SELLABLE`, `DAMAGED` or `MISSING` disposition. Quantities are limited to what was sold and not yet returned. Returning a parcel closes the order as `RETURNED` |
 | Sync | `POST /sync/sales`, `GET /sync/conflicts` | see [offline-sync.md](offline-sync.md) |
 | Reports | `GET /reports/dashboard`, `GET /reports/summary?start&end`, `GET /reports/sales.csv?start&end` | ranges up to 366 days |
-| Activity | `GET /audit`, `GET /notifications`, `POST /notifications/{id}/read` | |
+| Activity | `GET /audit`, `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all` | |

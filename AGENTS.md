@@ -39,7 +39,7 @@ The draft is now committed (`b7e932a`…`bd0967d`) and is being finished in the 
 | 0 | Checkpoint commits; free Render deploy with the in-API scheduler (`app/core/scheduler.py`, `APP_RUN_SCHEDULER`) | ✅ |
 | 1 | Correctness and security: online sales can't bypass stock; SPLIT payments with applied amounts plus `sales.amount_received`; offline sales keep their time and paid prices (`PRICE_MISMATCH` conflict); transition permissions; reservations through `InventoryService`; returns limited to sold − returned, closing the order (`services/returns_service.py`); tenant checks; JSON-safe audit with request ID/IP/UA; one error envelope; access logs; per-org purchase reference; offline-safe auth cache and single-flight refresh; service worker no longer caches `/health` | ✅ |
 | 2 | Design-system rework: `styles/tokens.css` (type scale with nothing under 12px, 4px spacing, 8/12/16 radius, AA-contrast colors with `--brand` at 4.6:1 for white text), CSS split into base/components/shell/pages, focus rings and `:focus-within` on search fields, coarse-pointer touch targets. Primitives: Toast, ConfirmDialog, DataState, ResponsiveTable, Drawer, AnimatedNumber, SegmentedControl. `lib/format.ts` and the `t()` layer. Guardrail test blocks <12px text and raw hex; axe checks run in Vitest; `scripts/screenshots.mjs` handles visual QA. The Vite dev proxy makes the API same-origin | ✅ |
-| 3 | App shell, RBAC nav, real badges, notification bell, command palette search, auth hardening | ☐ |
+| 3 | **Shell:** navigation filtered by role permissions plus `RequirePermission` route guards; real badges from `GET /workspace/counts`; store and branch from `/auth/me`; notification bell (Radix popover, mark read, mark all read via `POST /notifications/read-all`, deep links); profile menu with sign out and sign out on all devices; mobile More sheet; offline banner; sync indicator with last-synced time; skip link; page transitions. Command palette searches products/barcodes, orders, customer phones, invoices and tracking codes (`GET /search`) with arrow keys. Login prefill only in dev or `VITE_DEMO_MODE`. **Auth:** refresh-token reuse revokes the family (30 s multi-tab grace); access tokens die with their family on logout; `POST /auth/logout-all`; login, failed login and logout audited | ✅ |
 | 4 | Categories, product/variant editing, inventory adjust/history UI | ☐ |
 | 5 | POS scanning/shortcuts/checkout sheet, receipts, sales list, refunds | ☐ |
 | 6 | Dashboard and reports to §12/§48 | ☐ |
@@ -53,6 +53,8 @@ The draft is now committed (`b7e932a`…`bd0967d`) and is being finished in the 
 
 The full plan with per-phase detail lives in the session plan. The audit findings that still apply are listed under each phase above.
 
+**Verification after Phase 3:** 67 backend tests (SQLite and PostgreSQL) and 41 frontend tests.
+
 **Verification after Phase 1:** 57 backend tests on SQLite and PostgreSQL 17.6; 15 frontend tests; ruff, mypy, eslint, tsc and the build clean. Migrations round-trip with no drift, and the `24342a02ae64` payment backfill was checked both ways.
 
 ### Deployment groundwork (Session 27)
@@ -65,4 +67,4 @@ The full plan with per-phase detail lives in the session plan. The audit finding
 
 ## Next
 
-Phase 3: the app shell, RBAC navigation, real badges, notification bell, command palette search and auth hardening.
+Phase 4: categories, product and variant editing, and the inventory adjust/history UI (Sessions 4–5).

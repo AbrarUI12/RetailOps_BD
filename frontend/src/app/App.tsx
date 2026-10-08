@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "../components/layout/AppShell";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
+import { RequirePermission } from "../components/auth/RequirePermission";
 import { Toaster } from "../components/ui/Toast";
 import { LoginPage } from "../routes/LoginPage";
 // Offline-critical screens ship in the entry bundle so they work before ever being visited online.
@@ -40,16 +41,16 @@ export function App() {
               <Route element={<AppShell />}>
                 <Route index element={<Navigate replace to="/dashboard" />} />
                 <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="pos" element={<PosPage />} />
-                <Route path="products" element={<ProductsPage />} />
-                <Route path="inventory" element={<InventoryPage />} />
-                <Route path="customers" element={<CustomersPage />} />
-                <Route path="orders" element={<OrdersPage />} />
-                <Route path="purchases" element={<PurchasesPage />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="sync" element={<SyncPage />} />
+                <Route path="pos" element={<RequirePermission permission="sale:create"><PosPage /></RequirePermission>} />
+                <Route path="products" element={<RequirePermission permission="product:read"><ProductsPage /></RequirePermission>} />
+                <Route path="inventory" element={<RequirePermission permission="inventory:read"><InventoryPage /></RequirePermission>} />
+                <Route path="customers" element={<RequirePermission permission="customer:read"><CustomersPage /></RequirePermission>} />
+                <Route path="orders" element={<RequirePermission permission="order:read"><OrdersPage /></RequirePermission>} />
+                <Route path="purchases" element={<RequirePermission permission="purchase:write"><PurchasesPage /></RequirePermission>} />
+                <Route path="reports" element={<RequirePermission permission="report:read"><ReportsPage /></RequirePermission>} />
+                <Route path="sync" element={<RequirePermission permission="sale:create"><SyncPage /></RequirePermission>} />
                 <Route path="activity" element={<ActivityPage />} />
-                {workspaceRoutes.map((path) => <Route element={<WorkspacePage />} key={path} path={path} />)}
+                {workspaceRoutes.map((path) => <Route element={<RequirePermission permission="settings:manage"><WorkspacePage /></RequirePermission>} key={path} path={path} />)}
               </Route>
             </Route>
             <Route path="*" element={<Navigate replace to="/dashboard" />} />

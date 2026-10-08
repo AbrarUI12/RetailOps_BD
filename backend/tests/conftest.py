@@ -1,6 +1,9 @@
 import asyncio
 import os
 import sys
+
+# Settings are read at import time; give tests a realistic-length signing key.
+os.environ.setdefault("APP_SECRET_KEY", "pytest-only-signing-key-0123456789abcdef")
 from collections.abc import AsyncIterator
 from typing import NamedTuple
 

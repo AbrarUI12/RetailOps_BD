@@ -11,7 +11,10 @@ class LoginRequest(BaseModel):
 class UserView(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
+    organization_name: str
     branch_id: uuid.UUID
+    branch_name: str
+    branch_address: str | None = None
     email: EmailStr
     full_name: str
     role: str

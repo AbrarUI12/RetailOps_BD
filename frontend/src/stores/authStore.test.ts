@@ -4,7 +4,9 @@ import { useAuthStore } from "./authStore";
 const user: User = {
   id: "u1",
   organization_id: "o1",
+  organization_name: "RetailOps Demo",
   branch_id: "b1",
+  branch_name: "Dhanmondi",
   email: "cashier@retailopsbd.com",
   full_name: "Tanvir Ahmed",
   role: "CASHIER",

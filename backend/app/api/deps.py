@@ -13,6 +13,7 @@ from app.core.exceptions import AppError
 from app.core.permissions import ROLE_PERMISSIONS
 from app.core.security import decode_access_token
 from app.models.entities import User
+from app.services.auth_service import session_is_live
 from app.services.health_service import HealthService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -37,6 +38,7 @@ async def get_current_user(
         payload = decode_access_token(token)
         user_id = uuid.UUID(payload["sub"])
         organization_id = uuid.UUID(payload["organization_id"])
+        session_id = uuid.UUID(payload["session_id"])
     except (jwt.InvalidTokenError, KeyError, ValueError) as exc:
         raise AppError(
             "INVALID_ACCESS_TOKEN", "Authentication is required", status_code=401
@@ -48,7 +50,7 @@ async def get_current_user(
             User.is_active.is_(True),
         )
     )
-    if user is None:
+    if user is None or not await session_is_live(session, session_id):
         raise AppError("INVALID_ACCESS_TOKEN", "Authentication is required", status_code=401)
     return user
 
