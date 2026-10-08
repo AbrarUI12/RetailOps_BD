@@ -7,7 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.database import close_database
+from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.middleware import (
+    LoginRateLimitMiddleware,
+    SecurityHeadersMiddleware,
+    TrustedHostExceptHealthMiddleware,
+)
 from app.core.redis import close_redis
 
 
@@ -36,6 +42,12 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    application.add_middleware(
+        TrustedHostExceptHealthMiddleware, allowed_hosts=settings.allowed_hosts
+    )
+    application.add_middleware(LoginRateLimitMiddleware)
+    application.add_middleware(SecurityHeadersMiddleware)
+    register_exception_handlers(application)
     application.include_router(api_router)
     return application
 
