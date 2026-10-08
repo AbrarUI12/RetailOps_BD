@@ -1,0 +1,12 @@
+{
+  "name": "RetailOps BD",
+  "short_name": "RetailOps",
+  "description": "Offline-first retail operations for Bangladesh",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f7faf8",
+  "theme_color": "#0f9f78",
+  "icons": [
+    { "src": "/icons/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

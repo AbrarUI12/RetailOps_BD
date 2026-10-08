@@ -1,0 +1,32 @@
+import { ArrowRight, ClipboardList, Plus, ShieldAlert } from "lucide-react";
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Card, CardContent } from "../components/ui/Card";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "../components/ui/Dialog";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Input } from "../components/ui/Input";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/Table";
+import { api, type Product } from "../lib/api";
+import { formatBDT } from "../lib/utils";
+
+interface Customer { id: string; name: string; normalized_phone: string }
+interface Order { id: string; order_number: string; source: string; status: string; total: string; delivery_address: string; created_at: string; risk: { score: number; level: string; reasons: string[]; recommendation: string }; items: { product_name: string; quantity: number }[] }
+interface ProductPageData { items: Product[] }
+const nextStatus: Record<string, string | undefined> = { PENDING_CONFIRMATION: "CONFIRMED", CONFIRMED: "PACKING", PACKING: "READY_FOR_SHIPMENT", READY_FOR_SHIPMENT: "SHIPPED", SHIPPED: "DELIVERED" };
+
+export function OrdersPage() {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const orders = useQuery({ queryKey: ["orders"], queryFn: () => api<Order[]>("/api/v1/orders") });
+  const customers = useQuery({ queryKey: ["customers"], queryFn: () => api<Customer[]>("/api/v1/customers") });
+  const products = useQuery({ queryKey: ["products", "order"], queryFn: () => api<ProductPageData>("/api/v1/products?page_size=100") });
+  const create = useMutation({ mutationFn: (body: object) => api<Order>("/api/v1/orders", { method: "POST", body: JSON.stringify(body) }), onSuccess: async () => { setOpen(false); await queryClient.invalidateQueries({ queryKey: ["orders"] }); } });
+  const transition = useMutation({ mutationFn: ({ id, status }: { id: string; status: string }) => api<Order>(`/api/v1/orders/${id}/transition`, { method: "POST", body: JSON.stringify({ status }) }), onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["orders"] }) });
+  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); const value = (key: string) => { const item = data.get(key); return typeof item === "string" ? item : ""; }; create.mutate({ customer_id: value("customer"), source: value("source"), delivery_address: value("address"), area: value("area"), delivery_fee: Number(value("deliveryFee")), items: [{ variant_id: value("variant"), quantity: Number(value("quantity")) }] }); }
+  return <div><PageHeader eyebrow="Fulfillment" title="Orders" description="Capture social orders quickly, assess COD risk and move fulfillment forward." actions={<Dialog onOpenChange={setOpen} open={open}><DialogTrigger asChild><Button><Plus size={17}/> Facebook order</Button></DialogTrigger><DialogContent><DialogTitle>Create social order</DialogTitle><DialogDescription>Optimized for phone and Facebook order entry.</DialogDescription><form className="form-grid" onSubmit={submit}><label className="field"><span className="field-label">Customer</span><select className="input" name="customer" required><option value="">Select customer</option>{customers.data?.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.normalized_phone}</option>)}</select></label><label className="field"><span className="field-label">Source</span><select className="input" defaultValue="FACEBOOK" name="source"><option>FACEBOOK</option><option>INSTAGRAM</option><option>PHONE</option><option>WHATSAPP</option></select></label><label className="field full"><span className="field-label">Product</span><select className="input" name="variant" required><option value="">Select product</option>{products.data?.items.flatMap((product) => product.variants.map((variant) => <option key={variant.id} value={variant.id}>{product.name} · {variant.name} · {formatBDT(Number(variant.price))}</option>))}</select></label><Input defaultValue="1" label="Quantity" min="1" name="quantity" required type="number"/><Input defaultValue="80" label="Delivery fee" min="0" name="deliveryFee" type="number"/><Input className="full" label="Delivery address" name="address" required/><Input label="Area" name="area"/>{create.error ? <div className="form-alert full">{create.error.message}</div> : null}<div className="form-actions full"><Button disabled={create.isPending} type="submit">Create and assess risk</Button></div></form></DialogContent></Dialog>}/><Card><CardContent>{orders.data?.length ? <Table><TableHeader><TableRow><TableHead>Order</TableHead><TableHead>Channel</TableHead><TableHead>Status</TableHead><TableHead>COD risk</TableHead><TableHead className="align-right">Total</TableHead><TableHead/></TableRow></TableHeader><TableBody>{orders.data.map((order) => { const next = nextStatus[order.status]; return <TableRow key={order.id}><TableCell><strong className="mono">{order.order_number}</strong><small className="cell-subtitle">{order.items.map((item) => `${item.product_name} × ${item.quantity}`).join(", ")}</small></TableCell><TableCell><Badge>{order.source}</Badge></TableCell><TableCell><Badge tone={order.status === "DELIVERED" ? "success" : order.status === "CANCELLED" ? "danger" : "info"}>{order.status.replaceAll("_", " ")}</Badge></TableCell><TableCell><Badge tone={order.risk.level === "LOW" ? "success" : order.risk.level === "MEDIUM" ? "warning" : "danger"}><ShieldAlert size={12}/> {order.risk.level} · {order.risk.score}</Badge></TableCell><TableCell className="align-right strong">{formatBDT(Number(order.total))}</TableCell><TableCell className="align-right">{next ? <Button disabled={transition.isPending} onClick={() => transition.mutate({ id: order.id, status: next })} size="sm" variant="secondary">{next.replaceAll("_", " ")} <ArrowRight size={13}/></Button> : null}</TableCell></TableRow>; })}</TableBody></Table> : <EmptyState action="Create order" description="Facebook, phone and WhatsApp orders will appear in one operational queue." icon={ClipboardList} title="No orders yet"/>}</CardContent></Card></div>;
+}

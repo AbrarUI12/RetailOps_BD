@@ -14,3 +14,9 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js");
+  });
+}
+
