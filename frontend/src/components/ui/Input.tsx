@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes } from "react";
 
 import { cn } from "../../lib/utils";
 
@@ -9,7 +9,9 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ className, error, hint, id, label, ...props }: InputProps) {
-  const inputId = id ?? props.name;
+  const generatedId = useId();
+  // Every input gets an id so its label is always programmatically associated.
+  const inputId = id ?? props.name ?? generatedId;
   const messageId = inputId ? `${inputId}-message` : undefined;
 
   return (

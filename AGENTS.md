@@ -38,7 +38,7 @@ The draft is now committed (`b7e932a`…`bd0967d`) and is being finished in the 
 | --- | --- | --- |
 | 0 | Checkpoint commits; free Render deploy with the in-API scheduler (`app/core/scheduler.py`, `APP_RUN_SCHEDULER`) | ✅ |
 | 1 | Correctness and security: online sales can't bypass stock; SPLIT payments with applied amounts plus `sales.amount_received`; offline sales keep their time and paid prices (`PRICE_MISMATCH` conflict); transition permissions; reservations through `InventoryService`; returns limited to sold − returned, closing the order (`services/returns_service.py`); tenant checks; JSON-safe audit with request ID/IP/UA; one error envelope; access logs; per-org purchase reference; offline-safe auth cache and single-flight refresh; service worker no longer caches `/health` | ✅ |
-| 2 | Design-system rework: type scale (nothing under 12px), tokens, a11y, Toast/Confirm/DataState/ResponsiveTable/Drawer/AnimatedNumber/SegmentedControl, `lib/format.ts` | ☐ |
+| 2 | Design-system rework: `styles/tokens.css` (type scale with nothing under 12px, 4px spacing, 8/12/16 radius, AA-contrast colors with `--brand` at 4.6:1 for white text), CSS split into base/components/shell/pages, focus rings and `:focus-within` on search fields, coarse-pointer touch targets. Primitives: Toast, ConfirmDialog, DataState, ResponsiveTable, Drawer, AnimatedNumber, SegmentedControl. `lib/format.ts` and the `t()` layer. Guardrail test blocks <12px text and raw hex; axe checks run in Vitest; `scripts/screenshots.mjs` handles visual QA. The Vite dev proxy makes the API same-origin | ✅ |
 | 3 | App shell, RBAC nav, real badges, notification bell, command palette search, auth hardening | ☐ |
 | 4 | Categories, product/variant editing, inventory adjust/history UI | ☐ |
 | 5 | POS scanning/shortcuts/checkout sheet, receipts, sales list, refunds | ☐ |
@@ -65,4 +65,4 @@ The full plan with per-phase detail lives in the session plan. The audit finding
 
 ## Next
 
-Phase 2: the design-system rework. Every later screen builds on it.
+Phase 3: the app shell, RBAC navigation, real badges, notification bell, command palette search and auth hardening.

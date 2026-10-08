@@ -1,0 +1,27 @@
+.dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.8fr); gap: var(--space-3); margin-top: var(--space-3); }
+.dashboard-grid > div, .dashboard-grid .card { min-width: 0; height: 100%; }
+.activity-card { margin-top: var(--space-3); }
+.activity-card .card-content { padding-top: var(--space-3); }
+
+/* Accessible bar chart: every bar carries its value; a table alternative sits beside it. */
+.bar-chart { display: grid; height: 220px; grid-template-columns: repeat(var(--bars, 6), 1fr); align-items: end; gap: var(--space-3); padding-top: var(--space-5); border-bottom: 1px solid var(--border); }
+.bar-chart > div { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.bar-chart .bar { width: min(44px, 70%); min-height: 4px; background: linear-gradient(var(--brand-bright), var(--brand)); border-radius: 6px 6px 2px 2px; transition: height var(--duration-slow) var(--ease-out); }
+.bar-chart .bar-value { color: var(--text-muted); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+.bar-chart small { color: var(--text-muted); font-size: var(--text-caption); white-space: nowrap; }
+
+.signal-card { display: flex; min-height: 220px; flex-direction: column; align-items: flex-start; justify-content: center; }
+.signal-card > span { display: grid; width: 44px; height: 44px; place-items: center; color: var(--warning-strong); background: var(--warning-soft); border-radius: var(--radius-md); }
+.signal-card strong { margin-top: var(--space-4); font-size: var(--text-body-lg); }
+.signal-card p { color: var(--text-muted); font-size: var(--text-body); }
+
+@media (max-width: 1080px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .dashboard-grid { gap: var(--space-2); margin-top: var(--space-2); }
+  .activity-card { margin-top: var(--space-2); }
+  .bar-chart { gap: var(--space-2); }
+  .bar-chart .bar-value { display: none; }
+}

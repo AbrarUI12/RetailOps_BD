@@ -55,7 +55,7 @@ function NavigationLink({ item, mobile = false }: { item: (typeof navigation)[nu
   return (
     <NavLink
       aria-label={item.label}
-      className={({ isActive }) => cn(mobile ? "mobile-nav-link" : "nav-link", isActive && "active")}
+      className={({ isActive }) => cn(mobile ? "mobile-nav-link" : "nav-link", mobile && item.to === "/pos" && "primary", isActive && "active")}
       to={item.to}
     >
       {({ isActive }) => (
@@ -130,7 +130,7 @@ export function AppShell() {
             </SelectContent>
           </Select>
           <div className="sync-status"><StatusDot label={syncStatus === "OFFLINE" ? "Offline" : syncStatus === "SYNCING" ? "Syncing" : "Online"} tone={syncStatus === "OFFLINE" ? "offline" : syncStatus === "SYNCING" ? "syncing" : "online"} /><small>{pending ? `${pending} pending` : "Synced now"}</small></div>
-          <Button aria-label="Notifications, 3 unread" className="notification-button" size="icon" variant="ghost"><Bell size={18} /><span>3</span></Button>
+          <Button aria-label="Notifications, 3 unread" className="notification-button" size="icon" variant="ghost"><Bell size={18} /><span className="notification-count">3</span></Button>
           <button aria-label="Sign out" className="profile-button" onClick={() => void logout()} type="button"><span className="avatar">{initials}</span><span><strong>{user?.full_name ?? "RetailOps user"}</strong><small>{user?.role ?? "Team"} · Sign out</small></span><ChevronRight size={14} /></button>
           <Button aria-label="Open navigation menu" className="mobile-menu" size="icon" variant="ghost"><Menu size={20} /></Button>
         </header>

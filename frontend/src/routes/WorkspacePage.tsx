@@ -61,7 +61,7 @@ export function WorkspacePage() {
             <div><CardTitle>Experience states</CardTitle><CardDescription>Every workflow is designed for the moments between perfect responses.</CardDescription></div>
             <Badge tone="brand">UI foundation</Badge>
           </CardHeader>
-          <div className="state-tabs" role="tablist" aria-label="Preview interface states">
+          <div className="segmented state-tabs" role="tablist" aria-label="Preview interface states">
             {(["empty", "loading", "error", "offline", "denied"] as const).map((item) => (
               <button aria-selected={state === item} key={item} onClick={() => setState(item)} role="tab" type="button">{item}</button>
             ))}

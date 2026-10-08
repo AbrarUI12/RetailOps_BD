@@ -1,0 +1,162 @@
+/*
+ * Design tokens (plan.md §7). Components and pages use these, never raw colors or sizes.
+ * Text contrast: --text-muted and --text-soft both meet WCAG AA (4.5:1) on --surface.
+ */
+:root {
+  /* Surfaces */
+  --background: #f4f7f5;
+  --surface: #ffffff;
+  --surface-subtle: #f7faf8;
+  --surface-muted: #eef3f0;
+  --surface-elevated: #ffffff;
+  --surface-inverse: #123c31;
+  --surface-inverse-foreground: #f2fbf7;
+  --overlay: rgb(7 20 15 / 45%);
+
+  /* Lines */
+  --border: #dce5e1;
+  --border-subtle: #e8eeeb;
+  --border-strong: #c3d1ca;
+
+  /* Text */
+  --text: #14221d;
+  --text-muted: #56655e;
+  --text-soft: #66746d;
+  --text-on-brand: #ffffff;
+  --text-on-color: #ffffff; /* text on solid brand, danger or dark fills */
+
+  /* Brand (emerald/teal) */
+  /* --brand carries white text at 4.6:1; --brand-bright is for decoration only (charts, marks). */
+  --brand: #0b8566;
+  --brand-hover: #086e53;
+  --brand-bright: #10a37c;
+  --brand-strong: #07694c;
+  --brand-soft: #e6f6ef;
+  --brand-border: #c4e8d9;
+  --brand-foreground: #ffffff;
+
+  /* States: base for icons/fills, -strong for text on -soft backgrounds */
+  --success: #138a65;
+  --success-strong: #07694c;
+  --success-soft: #e6f6ef;
+  --success-border: #c4e8d9;
+  --warning: #d9860b;
+  --warning-strong: #8a5200;
+  --warning-soft: #fff4d9;
+  --warning-border: #f1dcae;
+  --danger: #d43f3f;
+  --danger-strong: #a12a2a;
+  --danger-soft: #ffeded;
+  --danger-border: #f3caca;
+  --info: #3977dc;
+  --info-strong: #2457a8;
+  --info-soft: #eaf1ff;
+  --info-border: #cfdcfa;
+  --accent-violet: #6a4fc0;
+  --accent-violet-soft: #f0ecff;
+
+  /* Focus: 2px ring in a color with >= 3:1 contrast on every surface */
+  --focus-ring-color: var(--brand-strong);
+
+  /* Typography (plan §7.2): nothing below 12px */
+  --font-sans: "Inter Variable", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --text-caption: 12px; /* labels, badges, helper text */
+  --text-compact: 13px; /* dense data: tables, secondary lines */
+  --text-body: 14px; /* default body and controls */
+  --text-body-lg: 16px; /* prominent body, list titles */
+  --text-section: 18px; /* card and section titles */
+  --text-section-lg: 20px;
+  --text-title: clamp(24px, 2.6vw, 30px); /* page titles */
+  --text-metric: clamp(24px, 2.4vw, 28px);
+  --text-display: clamp(32px, 4.2vw, 40px);
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spacing: 4px grid (plan §7.4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius (plan §7.3) */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Shadows: subtle, borders do most of the work (plan §7.5) */
+  --shadow-sm: 0 1px 2px rgb(16 40 31 / 5%);
+  --shadow-md: 0 12px 32px rgb(16 40 31 / 9%);
+  --shadow-lg: 0 28px 80px rgb(5 20 14 / 22%);
+  --shadow-brand: 0 6px 16px rgb(15 159 120 / 20%);
+
+  /* Controls */
+  --control-sm: 36px;
+  --control-md: 40px;
+  --control-lg: 48px;
+  --touch-target: 44px;
+
+  /* Motion (plan §8): fast feedback, spring-like easing for spatial movement */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Layout */
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 80px;
+  --topbar-height: 68px;
+  --content-max: 1480px;
+
+  /* Layers */
+  --z-sticky: 20;
+  --z-sidebar: 30;
+  --z-mobile-nav: 60;
+  --z-overlay: 80;
+  --z-dialog: 90;
+  --z-popover: 100;
+  --z-toast: 120;
+}
+
+/* Dark mode tokens are defined for later; light mode ships first (plan §7.1). */
+.dark {
+  --background: #0f1714;
+  --surface: #151f1b;
+  --surface-subtle: #18241f;
+  --surface-muted: #1d2b25;
+  --surface-elevated: #1c2924;
+  --surface-inverse: #e6f6ef;
+  --surface-inverse-foreground: #0f1714;
+  --border: #293a33;
+  --border-subtle: #22312b;
+  --border-strong: #3b5148;
+  --text: #eff7f3;
+  --text-muted: #a9b9b1;
+  --text-soft: #93a49c;
+  --brand-strong: #6fdcb8;
+  --brand-soft: #123b30;
+  --brand-border: #1e5545;
+  --success-strong: #6fdcb8;
+  --success-soft: #123b30;
+  --success-border: #1e5545;
+  --warning-strong: #f3c06b;
+  --warning-soft: #3a2b10;
+  --warning-border: #5a4419;
+  --danger-strong: #ff9b9b;
+  --danger-soft: #3d1a1a;
+  --danger-border: #5c2a2a;
+  --info-strong: #9fbfff;
+  --info-soft: #172a4a;
+  --info-border: #24406e;
+  --focus-ring-color: #6fdcb8;
+}

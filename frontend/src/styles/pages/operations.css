@@ -1,0 +1,31 @@
+/* Sync Center, Activity, Reports and workspace placeholder pages. */
+.sync-summary { display: grid; grid-template-columns: 1fr 300px; gap: var(--space-3); margin-bottom: var(--space-3); }
+.sync-hero { display: flex; min-height: 152px; align-items: center; gap: var(--space-5); }
+.sync-icon { display: grid; width: 52px; height: 52px; flex: none; place-items: center; color: var(--brand-strong); background: var(--brand-soft); border-radius: var(--radius-md); }
+.sync-icon.offline, .sync-icon.error { color: var(--warning-strong); background: var(--warning-soft); }
+.sync-icon.syncing svg { animation: spin 1.2s linear infinite; }
+.sync-hero h2 { margin: var(--space-2) 0 var(--space-1); font-size: var(--text-section); }
+.sync-hero p { margin: 0; color: var(--text-muted); font-size: var(--text-body); }
+.sync-number { display: block; margin-top: var(--space-3); font-size: var(--text-display); font-weight: var(--weight-bold); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.sync-row, .activity-row { display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) var(--space-1); border-bottom: 1px solid var(--border-subtle); }
+.sync-row:last-child, .activity-row:last-child { border-bottom: 0; }
+.sync-row > span, .activity-row > span { display: grid; min-width: 0; }
+.sync-row strong, .activity-row strong { font-size: var(--text-body); }
+.sync-row small, .activity-row small { max-width: 480px; margin-top: 2px; color: var(--text-muted); font-size: var(--text-caption); }
+.sync-row.conflict { padding-inline: var(--space-3); background: var(--danger-soft); border-radius: var(--radius-sm); }
+.activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.activity-row time { color: var(--text-muted); font-size: var(--text-caption); white-space: nowrap; }
+.report-metrics { margin-bottom: var(--space-3); }
+.report-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+.report-grid .card:first-child { grid-column: 1 / -1; }
+
+.workspace-preview { min-height: 470px; }
+.state-tabs { margin: var(--space-5) var(--space-5) 0; }
+.state-stage { min-height: 340px; }
+
+@media (max-width: 760px) {
+  .sync-summary, .report-grid, .activity-grid { grid-template-columns: 1fr; }
+  .report-grid .card:first-child { grid-column: auto; }
+  .sync-hero { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
+  .state-tabs { margin-inline: var(--space-3); }
+}

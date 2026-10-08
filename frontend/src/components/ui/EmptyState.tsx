@@ -18,7 +18,7 @@ export function EmptyState({ action, description, footer, icon: Icon, onAction, 
       <span className="empty-state-icon"><Icon aria-hidden="true" size={22} /></span>
       <h3>{title}</h3>
       <p>{description}</p>
-      {action ? <Button onClick={onAction} size="sm" type="button">{action}</Button> : null}
+      {action && onAction ? <Button onClick={onAction} size="sm" type="button">{action}</Button> : null}
       {footer}
     </div>
   );

@@ -61,6 +61,12 @@ docker compose up --build
 docker compose exec backend uv run python -m scripts.seed_demo   # demo tenant, idempotent
 ```
 
+The frontend container keeps `node_modules` in a named volume. After pulling changes that add packages, install them inside the container:
+
+```bash
+docker compose exec frontend npm ci
+```
+
 | | URL |
 | --- | --- |
 | App | <http://localhost:5173> |

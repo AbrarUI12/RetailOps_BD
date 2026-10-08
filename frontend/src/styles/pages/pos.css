@@ -1,0 +1,109 @@
+/* POS (plan §13): catalog and cart side by side down to tablet width, so totals stay visible. */
+.content:has(.pos-page), .content:has(.receipt-screen) { max-width: none; padding: 0; }
+.pos-page { display: grid; min-height: calc(100vh - var(--topbar-height)); grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); }
+.pos-catalog { min-width: 0; padding: var(--space-6) var(--space-6); background: var(--surface-subtle); }
+.pos-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.pos-heading h1 { margin: 2px 0 var(--space-5); font-size: var(--text-title); letter-spacing: -0.03em; }
+.pos-search { display: flex; height: var(--control-lg); align-items: center; gap: var(--space-3); padding: 0 var(--space-4); color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
+.pos-search:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.pos-search input { min-width: 0; flex: 1; color: var(--text); background: transparent; border: 0; outline: 0; font-size: var(--text-body-lg); }
+.pos-search input::placeholder { color: var(--text-soft); }
+.category-pills { display: flex; gap: var(--space-2); padding: var(--space-4) 0; overflow-x: auto; }
+.category-pills button, .payment-tabs button {
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3);
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-compact);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.category-pills button.active, .category-pills button[aria-pressed="true"],
+.payment-tabs button.active, .payment-tabs button[aria-pressed="true"] { color: var(--surface-inverse-foreground); background: var(--surface-inverse); border-color: var(--surface-inverse); }
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: var(--space-3); }
+.product-tile { display: grid; min-height: 196px; align-content: start; padding: var(--space-3); text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); transition: transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease, border-color var(--duration-fast) ease; }
+.product-tile:hover { transform: translateY(-2px); border-color: var(--border-strong); box-shadow: var(--shadow-md); }
+.product-tile:disabled { cursor: not-allowed; opacity: 0.6; transform: none; }
+.product-art { display: grid; height: 96px; place-items: center; color: var(--brand-strong); background: linear-gradient(145deg, var(--brand-soft), var(--brand-border)); border-radius: var(--radius-sm); font-size: var(--text-section-lg); font-weight: 800; }
+.product-tile > span:nth-child(2) { display: grid; padding-top: var(--space-2); }
+.product-tile strong { font-size: var(--text-body); line-height: var(--leading-tight); }
+.product-tile small { margin-top: var(--space-1); color: var(--text-muted); font-size: var(--text-caption); }
+.product-price { margin-top: var(--space-2); color: var(--brand-strong); font-size: var(--text-body-lg); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
+.product-stock { color: var(--text-muted); font-size: var(--text-caption); }
+.product-stock.low { color: var(--warning-strong); }
+.product-stock.out { color: var(--danger-strong); }
+
+.cart-panel { position: sticky; top: var(--topbar-height); display: flex; height: calc(100vh - var(--topbar-height)); flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); }
+.cart-title { display: flex; height: 64px; flex: none; align-items: center; justify-content: space-between; padding: 0 var(--space-5); border-bottom: 1px solid var(--border); }
+.cart-title > div { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-body-lg); }
+.cart-lines { flex: 1; padding: var(--space-2) var(--space-4); overflow-y: auto; }
+.cart-lines > div { display: grid; gap: var(--space-1); }
+.cart-empty { display: flex !important; min-height: 260px; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center; }
+.cart-empty strong { margin-top: var(--space-3); color: var(--text); font-size: var(--text-body-lg); }
+.cart-empty span { margin-top: var(--space-1); font-size: var(--text-body); }
+.cart-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-1); border-bottom: 1px solid var(--border-subtle); }
+.cart-line > div:first-child { display: grid; min-width: 0; }
+.cart-line strong { overflow: hidden; font-size: var(--text-body); text-overflow: ellipsis; white-space: nowrap; }
+.cart-line small { margin-top: 2px; color: var(--text-muted); font-size: var(--text-caption); }
+.cart-line .line-total { font-size: var(--text-body); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.quantity-control { display: flex; height: var(--control-sm); align-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.quantity-control button { display: grid; width: var(--control-sm); height: 100%; place-items: center; background: var(--surface-subtle); border: 0; }
+.quantity-control button:hover { background: var(--surface-muted); }
+.quantity-control span { width: 32px; font-size: var(--text-body); font-weight: var(--weight-semibold); text-align: center; font-variant-numeric: tabular-nums; }
+.remove-line { display: grid; width: var(--control-sm); height: var(--control-sm); place-items: center; color: var(--text-muted); background: transparent; border: 0; border-radius: var(--radius-sm); }
+.remove-line:hover { color: var(--danger-strong); background: var(--danger-soft); }
+.cart-summary { display: grid; flex: none; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); box-shadow: 0 -8px 24px rgb(20 52 41 / 4%); }
+.cart-summary > div { display: flex; justify-content: space-between; font-size: var(--text-body); font-variant-numeric: tabular-nums; }
+.cart-summary > label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--text-muted); font-size: var(--text-body); }
+.cart-summary > label input { width: 120px; min-height: var(--control-sm); padding: 0 var(--space-2); text-align: right; border: 1px solid var(--border); border-radius: var(--radius-sm); font-variant-numeric: tabular-nums; }
+.cart-summary .cart-total { padding-top: var(--space-3); border-top: 1px dashed var(--border-strong); font-size: var(--text-section-lg); font-weight: var(--weight-bold); }
+.payment-tabs { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: var(--space-1); }
+.payment-tabs button { padding-inline: var(--space-1); border-radius: var(--radius-sm); }
+
+.receipt-screen { display: grid; min-height: calc(100vh - var(--topbar-height)); grid-template-columns: minmax(320px, 520px) 320px; place-content: center; gap: clamp(32px, 8vw, 112px); padding: var(--space-10); background: var(--surface-subtle); }
+.receipt-success { align-self: center; }
+.receipt-success > span { display: grid; width: 56px; height: 56px; place-items: center; color: var(--brand-strong); background: var(--brand-soft); border-radius: var(--radius-lg); }
+.receipt-success h1 { margin: var(--space-5) 0 var(--space-2); font-size: var(--text-display); letter-spacing: -0.04em; }
+.receipt-success p { color: var(--text-muted); font-size: var(--text-body-lg); line-height: 1.6; }
+.receipt-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-6); }
+/* The paper itself mimics an 80mm thermal slip; its own scale is intentional. */
+.receipt-paper { width: 300px; padding: var(--space-6) var(--space-5); background: #fff; box-shadow: var(--shadow-md); font-family: var(--font-mono); font-size: var(--text-caption); color: #14221d; }
+.receipt-paper header { display: grid; place-items: center; gap: var(--space-1); padding-bottom: var(--space-4); border-bottom: 1px dashed #b4c1bb; text-align: center; }
+.receipt-logo { display: grid; width: 36px; height: 36px; place-items: center; color: #fff; background: var(--brand); border-radius: var(--radius-sm); font-family: var(--font-sans); font-size: var(--text-section); font-weight: 800; }
+.receipt-meta { display: grid; gap: var(--space-1); padding: var(--space-3) 0; color: #4a5853; border-bottom: 1px dashed #b4c1bb; }
+.receipt-line { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; }
+.receipt-line span { display: grid; }
+.receipt-line small { margin-top: 2px; color: #4a5853; }
+.receipt-total { display: flex; justify-content: space-between; padding-top: var(--space-3); border-top: 1px dashed #b4c1bb; font-size: var(--text-body); font-weight: var(--weight-bold); }
+.receipt-total.small { margin-top: var(--space-2); padding-top: 0; border: 0; font-size: var(--text-caption); font-weight: var(--weight-regular); }
+.receipt-paper footer { margin-top: var(--space-6); color: #4a5853; line-height: 1.7; text-align: center; }
+
+@media (max-width: 1080px) {
+  .pos-page { grid-template-columns: minmax(0, 1fr) minmax(320px, 360px); }
+  .pos-catalog { padding: var(--space-5) var(--space-4); }
+  .product-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .pos-page { grid-template-columns: 1fr; }
+  .cart-panel { position: relative; top: auto; height: auto; min-height: 480px; border-top: 1px solid var(--border); border-left: 0; }
+  .receipt-screen { grid-template-columns: 1fr; place-items: center; padding: var(--space-8) var(--space-4); }
+  .receipt-success { text-align: center; }
+  .receipt-success > span { margin: auto; }
+  .receipt-actions { justify-content: center; }
+}
+
+@media (max-width: 600px) {
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .product-tile { min-height: 176px; }
+  .product-art { height: 80px; }
+}
+
+@page { size: 80mm auto; margin: 4mm; }
+@media print {
+  body * { visibility: hidden; }
+  .receipt-paper, .receipt-paper * { visibility: visible; }
+  .receipt-paper { position: absolute; top: 0; left: 0; width: 72mm; padding: 0; box-shadow: none; }
+}

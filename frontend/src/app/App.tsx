@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "../components/layout/AppShell";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
+import { Toaster } from "../components/ui/Toast";
 import { LoginPage } from "../routes/LoginPage";
 // Offline-critical screens ship in the entry bundle so they work before ever being visited online.
 import { PosPage } from "../routes/PosPage";
@@ -54,6 +55,7 @@ export function App() {
             <Route path="*" element={<Navigate replace to="/dashboard" />} />
           </Routes>
         </BrowserRouter>
+        <Toaster />
       </MotionConfig>
     </QueryClientProvider>
   );
