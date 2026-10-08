@@ -6,32 +6,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.models.entities import (
-    Order,
     Purchase,
     PurchaseItem,
-    Return,
-    ReturnItem,
-    Sale,
     Supplier,
     User,
 )
 from app.schemas.operations import (
     PurchaseCreate,
     PurchaseView,
-    ReturnCreate,
     SupplierCreate,
     SupplierView,
 )
 from app.services.audit_service import add_audit
 from app.services.inventory_service import InventoryService
-
-# Sellable returns go back on the shelf; damaged and missing units are recorded in the
-# ledger with no change to sellable stock so every returned unit has an explicit trail.
-RETURN_EFFECTS: dict[str, tuple[str, bool]] = {
-    "SELLABLE": ("RETURN_SELLABLE", True),
-    "DAMAGED": ("RETURN_DAMAGED", False),
-    "MISSING": ("RETURN_MISSING", False),
-}
 
 
 class ProcurementService:
@@ -124,56 +111,6 @@ class ProcurementService:
         add_audit(self.session, self.user, "purchase.received", "purchase", purchase.id)
         await self.session.commit()
         return self._purchase_view(purchase)
-
-    async def receive_return(self, command: ReturnCreate) -> dict[str, object]:
-        if not command.order_id and not command.sale_id:
-            raise AppError(
-                "RETURN_REFERENCE_REQUIRED", "Order or sale is required", status_code=422
-            )
-        if command.order_id and not await self.session.scalar(
-            select(Order.id).where(
-                Order.id == command.order_id,
-                Order.organization_id == self.user.organization_id,
-            )
-        ):
-            raise AppError("ORDER_NOT_FOUND", "Order was not found", status_code=404)
-        if command.sale_id and not await self.session.scalar(
-            select(Sale.id).where(
-                Sale.id == command.sale_id,
-                Sale.organization_id == self.user.organization_id,
-            )
-        ):
-            raise AppError("SALE_NOT_FOUND", "Sale was not found", status_code=404)
-        returned = Return(
-            organization_id=self.user.organization_id,
-            branch_id=self.user.branch_id,
-            order_id=command.order_id,
-            sale_id=command.sale_id,
-            status="RECEIVED",
-            reason=command.reason,
-        )
-        self.session.add(returned)
-        await self.session.flush()
-        for line in command.items:
-            self.session.add(
-                ReturnItem(
-                    organization_id=self.user.organization_id,
-                    return_id=returned.id,
-                    **line.model_dump(),
-                )
-            )
-            movement_type, restock = RETURN_EFFECTS[line.disposition]
-            await self.inventory.apply_movement(
-                variant_id=line.variant_id,
-                quantity_delta=line.quantity if restock else 0,
-                movement_type=movement_type,
-                note=f"{command.reason} ({line.quantity} {line.disposition.lower()})",
-                reference_type="return",
-                reference_id=returned.id,
-            )
-        add_audit(self.session, self.user, "return.received", "return", returned.id)
-        await self.session.commit()
-        return {"id": str(returned.id), "status": returned.status}
 
     @staticmethod
     def _purchase_view(purchase: Purchase) -> PurchaseView:

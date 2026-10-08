@@ -56,14 +56,18 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+def ensure_permission(user: User, permission: str) -> None:
+    if permission not in ROLE_PERMISSIONS[user.role.name]:
+        raise AppError(
+            "FORBIDDEN",
+            "You do not have permission to perform this action",
+            status_code=403,
+        )
+
+
 def require_permission(permission: str) -> Callable[[CurrentUser], Awaitable[User]]:
     async def dependency(user: CurrentUser) -> User:
-        if permission not in ROLE_PERMISSIONS[user.role.name]:
-            raise AppError(
-                "FORBIDDEN",
-                "You do not have permission to perform this action",
-                status_code=403,
-            )
+        ensure_permission(user, permission)
         return user
 
     return dependency

@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AppError
 from app.models.entities import (
     Customer,
-    InventoryBalance,
     InventoryReservation,
     Order,
     OrderItem,
@@ -29,7 +28,12 @@ from app.schemas.operations import (
     ShipmentView,
 )
 from app.services.audit_service import add_audit
-from app.services.cod_risk import RiskFacts, RiskResult, calculate_cod_risk
+from app.services.cod_risk import (
+    RiskFacts,
+    RiskResult,
+    calculate_cod_risk,
+    recommendation_for,
+)
 from app.services.couriers import ORDER_STATUS_FOR, CourierStatus, get_provider
 from app.services.customer_service import CustomerService
 from app.services.inventory_service import InventoryService
@@ -288,22 +292,19 @@ class OrderService:
         return order
 
     async def _reserve(self, order: Order) -> None:
+        inventory = InventoryService(self.session, self.user)
         for item in order.items:
-            balance = await self.session.scalar(
-                select(InventoryBalance)
-                .where(
-                    InventoryBalance.branch_id == order.branch_id,
-                    InventoryBalance.variant_id == item.variant_id,
+            try:
+                await inventory.reserve(
+                    variant_id=item.variant_id, branch_id=order.branch_id, quantity=item.quantity
                 )
-                .with_for_update()
-            )
-            if balance is None or balance.available_quantity < item.quantity:
+            except AppError as exc:
                 raise AppError(
                     "INSUFFICIENT_STOCK",
                     f"Not enough stock for {item.product_name}",
                     status_code=409,
-                )
-            balance.reserved_quantity += item.quantity
+                    details=exc.details,
+                ) from exc
             self.session.add(
                 InventoryReservation(
                     organization_id=self.user.organization_id,
@@ -314,46 +315,35 @@ class OrderService:
                 )
             )
 
-    async def _release(self, order: Order) -> None:
-        reservations = await self.session.scalars(
-            select(InventoryReservation).where(
-                InventoryReservation.order_id == order.id,
-                InventoryReservation.active.is_(True),
+    async def _active_reservations(self, order: Order) -> list[InventoryReservation]:
+        return list(
+            await self.session.scalars(
+                select(InventoryReservation).where(
+                    InventoryReservation.order_id == order.id,
+                    InventoryReservation.active.is_(True),
+                )
             )
         )
-        for reservation in reservations:
-            balance = await self.session.scalar(
-                select(InventoryBalance)
-                .where(
-                    InventoryBalance.branch_id == reservation.branch_id,
-                    InventoryBalance.variant_id == reservation.variant_id,
-                )
-                .with_for_update()
+
+    async def _release(self, order: Order) -> None:
+        inventory = InventoryService(self.session, self.user)
+        for reservation in await self._active_reservations(order):
+            await inventory.release(
+                variant_id=reservation.variant_id,
+                branch_id=reservation.branch_id,
+                quantity=reservation.quantity,
             )
-            if balance:
-                balance.reserved_quantity = max(0, balance.reserved_quantity - reservation.quantity)
             reservation.active = False
 
     async def _consume(self, order: Order) -> None:
         """Turn active reservations into physical stock deductions when the parcel leaves."""
         inventory = InventoryService(self.session, self.user)
-        reservations = await self.session.scalars(
-            select(InventoryReservation).where(
-                InventoryReservation.order_id == order.id,
-                InventoryReservation.active.is_(True),
+        for reservation in await self._active_reservations(order):
+            await inventory.release(
+                variant_id=reservation.variant_id,
+                branch_id=reservation.branch_id,
+                quantity=reservation.quantity,
             )
-        )
-        for reservation in reservations:
-            balance = await self.session.scalar(
-                select(InventoryBalance)
-                .where(
-                    InventoryBalance.branch_id == reservation.branch_id,
-                    InventoryBalance.variant_id == reservation.variant_id,
-                )
-                .with_for_update()
-            )
-            if balance:
-                balance.reserved_quantity = max(0, balance.reserved_quantity - reservation.quantity)
             await inventory.apply_movement(
                 variant_id=reservation.variant_id,
                 quantity_delta=-reservation.quantity,
@@ -381,6 +371,13 @@ class OrderService:
         prior = await self.session.scalar(
             select(func.count(Order.id)).where(Order.customer_id == customer.id)
         )
+        # A booked parcel the courier later cancelled: the closest thing to "cancelled after
+        # shipment" this state machine allows.
+        cancelled_shipments = await self.session.scalar(
+            select(func.count(Shipment.id))
+            .join(Order, Order.id == Shipment.order_id)
+            .where(Order.customer_id == customer.id, Shipment.status == "CANCELLED")
+        )
         recent = await self.session.scalar(
             select(func.count(Order.id)).where(
                 Order.customer_id == customer.id,
@@ -395,6 +392,7 @@ class OrderService:
                 duplicate_recent_order=bool(recent),
                 complete_address=len(address.strip()) >= 12,
                 prior_orders=prior or 0,
+                shipped_cancellations=cancelled_shipments or 0,
             )
         )
 
@@ -404,11 +402,7 @@ class OrderService:
             score=order.cod_risk_score,
             level=order.cod_risk_level,
             reasons=order.risk_reasons,
-            recommendation=(
-                "Proceed normally"
-                if order.cod_risk_level == "LOW"
-                else "Call customer before dispatch"
-            ),
+            recommendation=recommendation_for(order.cod_risk_level),
         )
         return OrderView(
             id=order.id,

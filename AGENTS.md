@@ -28,55 +28,41 @@ This file is the living implementation record for contributors and coding agents
 - React/Vite/Tailwind shell with semantic tokens, local fonts, reusable controls, Motion primitives, responsive navigation, command palette, and explicit interface states.
 - Commits: `8bbee37`, `48fb11d`.
 
-### Sessions 3–26 — Transactional product surface
+### Sessions 3–27 — draft received, being completed phase by phase
 
-- **Core:** auth with rotating refresh cookie, RBAC with five roles, catalog and variants, inventory ledger, POS sales and receipts, and the live dashboard.
-- **Customers and orders:** customers with BD phone normalization, manual/Facebook COD orders with explainable risk scoring, and the legal order state machine with reservations.
-  - Confirm reserves stock, cancel releases it, and shipping consumes it as an `ORDER_FULFILLMENT` movement.
-- **Courier adapter:** `services/couriers.py` defines a `CourierProvider` protocol and a mock provider. Normalized courier updates (`POST /orders/{id}/shipment/events`) record the shipment timeline and drive order status.
-- **Returns:** every disposition writes a ledger entry; `SELLABLE` restocks.
-- **Purchases:** receiving is row-locked and idempotent.
-- **Offline:** IndexedDB sale queue and idempotent `/sync/sales`.
-  - Oversells create a `sync_conflicts` row and a notification.
-  - Malformed payloads return 422 `INVALID_SYNC_PAYLOAD`.
-  - Server rejections mark the transaction `FAILED`.
-- **Sync engine** (`frontend/src/lib/syncEngine.ts`): health probe, strict creation-order queue, transient vs permanent failure classification, exponential backoff, and recovery of `SYNCING` rows from dead tabs.
-  - POS checkout falls back to the queue on a transient failure, reusing the same `client_transaction_id`.
-- **Reports:** `/reports/summary` and `/reports/sales.csv` by Dhaka business day. The dashboard's "today" is the Dhaka day (fixed UTC+6 in `app/utils/time.py`).
-- **Background jobs:** Celery beat runs low-stock alerts and stale-sync release (`services/housekeeping_service.py`).
-- **Audit, notifications, PWA:** audit log, notifications, and a PWA shell. Routes are code-split; POS and Sync Center stay in the entry bundle for offline use.
-- **Hardening:**
-  - JWT claims are parsed to UUIDs.
-  - The login rate limiter keys on the real client IP behind the proxy.
-  - Production settings refuse weak secrets, debug mode, or insecure cookies.
-  - The host allowlist exempts `/health/*`.
-  - The seed writes opening stock to the ledger.
-- **Verification (2026-10-09):**
-  - 42 backend tests pass on both SQLite and PostgreSQL 17.6.
-  - 12 frontend tests pass.
-  - ruff, mypy, eslint, tsc and the build are clean.
-  - The Alembic migration passes upgrade → `alembic check` (no drift) → downgrade → upgrade on a fresh database.
+Sessions 3–27 arrived as an uncommitted, unverified draft. A plan.md audit (2026-10-09) found missing endpoints, fake or missing UI, UI/UX below plan §7/§80 (7–10px text, raw hex colors), broken offline reload, and security holes.
 
-### Session 27 — Deployment (prepared, not yet applied)
+The draft is now committed (`b7e932a`…`bd0967d`) and is being finished in the phases below. Do not treat a session as done until its phase is ticked here.
+
+| Phase | Scope | State |
+| --- | --- | --- |
+| 0 | Checkpoint commits; free Render deploy with the in-API scheduler (`app/core/scheduler.py`, `APP_RUN_SCHEDULER`) | ✅ |
+| 1 | Correctness and security: online sales can't bypass stock; SPLIT payments with applied amounts plus `sales.amount_received`; offline sales keep their time and paid prices (`PRICE_MISMATCH` conflict); transition permissions; reservations through `InventoryService`; returns limited to sold − returned, closing the order (`services/returns_service.py`); tenant checks; JSON-safe audit with request ID/IP/UA; one error envelope; access logs; per-org purchase reference; offline-safe auth cache and single-flight refresh; service worker no longer caches `/health` | ✅ |
+| 2 | Design-system rework: type scale (nothing under 12px), tokens, a11y, Toast/Confirm/DataState/ResponsiveTable/Drawer/AnimatedNumber/SegmentedControl, `lib/format.ts` | ☐ |
+| 3 | App shell, RBAC nav, real badges, notification bell, command palette search, auth hardening | ☐ |
+| 4 | Categories, product/variant editing, inventory adjust/history UI | ☐ |
+| 5 | POS scanning/shortcuts/checkout sheet, receipts, sales list, refunds | ☐ |
+| 6 | Dashboard and reports to §12/§48 | ☐ |
+| 7 | Customers profile, fast order form, order drawer, risk card, courier and returns UI | ☐ |
+| 8 | Offline completeness (local stock, catalog sync, Sync Center actions, IndexedDB namespacing), PWA, Playwright | ☐ |
+| 9 | Suppliers, purchases, audit log, notifications | ☐ |
+| 10 | Security, performance and accessibility pass | ☐ |
+| 11 | Demo seed per §67 | ☐ |
+| 12 | Deploy (needs the account owner) | ☐ |
+| 13 | Portfolio media | ☐ |
+
+The full plan with per-phase detail lives in the session plan. The audit findings that still apply are listed under each phase above.
+
+**Verification after Phase 1:** 57 backend tests on SQLite and PostgreSQL 17.6; 15 frontend tests; ruff, mypy, eslint, tsc and the build clean. Migrations round-trip with no drift, and the `24342a02ae64` payment backfill was checked both ways.
+
+### Deployment groundwork (Session 27)
 
 - `render.yaml` defines four free services: static site, Docker API (which runs the housekeeping scheduler in-process), Key Value and Postgres 17. It validates against Render's JSON schema.
 - The static site proxies `/api/*` and `/health/*` to the API. This keeps the refresh cookie first-party: `onrender.com` is a public suffix, so the two subdomains are cross-site.
 - The API boots via `backend/scripts/start_api.sh`: migrate → optional demo seed (`APP_SEED_DEMO`) → uvicorn with proxy headers.
-- CI adds a PostgreSQL job (migration round-trip, idempotent seed, full suite) and a production image build.
-- `backend/scripts/smoke_test.py` is a stdlib-only post-deploy check. Its API checks were verified against a local server.
-- Runbook: `docs/deployment.md`.
+- CI runs a PostgreSQL job (migration round-trip, idempotent seed, full suite) and a production image build.
+- `backend/scripts/smoke_test.py` is the post-deploy check. Runbook: `docs/deployment.md`.
 
 ## Next
 
-1. **Apply the Blueprint** on Render, which needs the account owner. Every service is on a free plan.
-   - Confirm the assigned hostnames match `render.yaml`.
-   - Run `python backend/scripts/smoke_test.py https://retailops-bd.onrender.com --demo`.
-   - Confirm the wildcard rewrites to the external API URL behave as expected.
-2. **Session 28 portfolio polish:** screenshots, Motion GIF/video, the 2–4 minute demo video, an API docs screenshot, and a test badge. The README, CI badge and Mermaid diagrams are done.
-3. **Remaining product gaps:**
-   - Playwright E2E for the plan §65 offline scenarios.
-   - Shipment timeline and "book courier" action in the Orders UI. The UI still moves orders to `SHIPPED` directly.
-   - Optimistic local stock display in POS. Variants carry no stock in the POS payload.
-   - A service worker precache manifest for lazy route chunks.
-   - Sentry.
-   - A Redis-backed login rate limiter for multi-instance deployments.
+Phase 2: the design-system rework. Every later screen builds on it.

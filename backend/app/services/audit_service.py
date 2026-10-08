@@ -1,8 +1,10 @@
 import uuid
 from typing import Any
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.request_context import current_request
 from app.models.entities import AuditLog, User
 
 
@@ -16,6 +18,7 @@ def add_audit(
     old_data: dict[str, Any] | None = None,
     new_data: dict[str, Any] | None = None,
 ) -> None:
+    request = current_request()
     session.add(
         AuditLog(
             organization_id=user.organization_id,
@@ -23,7 +26,11 @@ def add_audit(
             action=action,
             entity_type=entity_type,
             entity_id=entity_id,
-            old_data=old_data,
-            new_data=new_data,
+            # UUIDs, Decimals and datetimes become JSON-safe strings.
+            old_data=jsonable_encoder(old_data) if old_data is not None else None,
+            new_data=jsonable_encoder(new_data) if new_data is not None else None,
+            request_id=request.request_id,
+            ip_address=request.client_ip,
+            user_agent=request.user_agent,
         )
     )

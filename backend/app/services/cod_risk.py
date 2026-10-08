@@ -20,6 +20,24 @@ class RiskResult:
     recommendation: str
 
 
+RECOMMENDATIONS = {
+    "LOW": "Proceed normally",
+    "MEDIUM": "Verify address before dispatch",
+    "HIGH": "Call customer before dispatch",
+    "VERY_HIGH": "Require advance payment or manager approval",
+}
+
+
+def risk_level(score: int) -> str:
+    return (
+        "LOW" if score < 25 else "MEDIUM" if score < 50 else "HIGH" if score < 75 else "VERY_HIGH"
+    )
+
+
+def recommendation_for(level: str) -> str:
+    return RECOMMENDATIONS.get(level, RECOMMENDATIONS["HIGH"])
+
+
 def calculate_cod_risk(facts: RiskFacts) -> RiskResult:
     score = 0
     reasons: list[str] = []
@@ -49,16 +67,6 @@ def calculate_cod_risk(facts: RiskFacts) -> RiskResult:
         score -= 10
         reasons.append("Repeat customer")
     score = max(0, min(100, score))
-    level = (
-        "LOW" if score < 25 else "MEDIUM" if score < 50 else "HIGH" if score < 75 else "VERY_HIGH"
-    )
-    recommendation = (
-        "Proceed normally"
-        if level == "LOW"
-        else "Verify address before dispatch"
-        if level == "MEDIUM"
-        else "Call customer before dispatch"
-        if level == "HIGH"
-        else "Require advance payment or manager approval"
-    )
+    level = risk_level(score)
+    recommendation = recommendation_for(level)
     return RiskResult(score, level, reasons, recommendation)

@@ -272,6 +272,7 @@ class Sale(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "invoice_number"),
         UniqueConstraint("organization_id", "client_transaction_id"),
+        Index("ix_sales_branch_created_at", "branch_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -284,7 +285,11 @@ class Sale(Base, TimestampMixin):
     subtotal: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     discount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    # Cash handed over; payments store the amount applied, so change = received - total.
+    amount_received: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     synced_offline: Mapped[bool] = mapped_column(Boolean, default=False)
+    # For offline sales created_at is when the customer paid; synced_at is when the server learned.
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     items: Mapped[list["SaleItem"]] = relationship(cascade="all, delete-orphan", lazy="selectin")
     payments: Mapped[list["Payment"]] = relationship(cascade="all, delete-orphan", lazy="selectin")
 
@@ -320,7 +325,10 @@ class Payment(Base):
 
 class Order(Base, TimestampMixin):
     __tablename__ = "orders"
-    __table_args__ = (UniqueConstraint("organization_id", "order_number"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "order_number"),
+        Index("ix_orders_branch_created_at", "branch_id", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
@@ -438,12 +446,13 @@ class Supplier(Base, TimestampMixin):
 
 class Purchase(Base, TimestampMixin):
     __tablename__ = "purchases"
+    __table_args__ = (UniqueConstraint("organization_id", "reference"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     branch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("branches.id"), index=True)
     supplier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("suppliers.id"), index=True)
-    reference: Mapped[str] = mapped_column(String(60), unique=True)
+    reference: Mapped[str] = mapped_column(String(60))
     status: Mapped[str] = mapped_column(String(20), default="DRAFT")
     total: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
 
@@ -525,6 +534,8 @@ class AuditLog(Base):
     old_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     new_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     request_id: Mapped[str | None] = mapped_column(String(80))
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, index=True
     )

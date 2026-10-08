@@ -127,6 +127,24 @@ class ReturnCreate(BaseModel):
     items: list[ReturnLineInput] = Field(min_length=1)
 
 
+class ReturnItemView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    variant_id: uuid.UUID
+    quantity: int
+    disposition: str
+
+
+class ReturnView(BaseModel):
+    id: uuid.UUID
+    order_id: uuid.UUID | None
+    sale_id: uuid.UUID | None
+    status: str
+    reason: str
+    created_at: datetime
+    items: list[ReturnItemView]
+
+
 class SyncSaleInput(BaseModel):
     client_transaction_id: uuid.UUID
     payload: dict[str, object]

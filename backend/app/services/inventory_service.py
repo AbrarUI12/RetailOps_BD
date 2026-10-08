@@ -146,6 +146,37 @@ class InventoryService:
         self.session.add(movement)
         return movement
 
+    async def _locked_balance(
+        self, variant_id: uuid.UUID, branch_id: uuid.UUID
+    ) -> InventoryBalance | None:
+        return await self.session.scalar(
+            select(InventoryBalance)
+            .where(
+                InventoryBalance.organization_id == self.user.organization_id,
+                InventoryBalance.branch_id == branch_id,
+                InventoryBalance.variant_id == variant_id,
+            )
+            .with_for_update()
+        )
+
+    async def reserve(self, *, variant_id: uuid.UUID, branch_id: uuid.UUID, quantity: int) -> None:
+        """Hold available stock for a confirmed order; physical stock is unchanged."""
+        balance = await self._locked_balance(variant_id, branch_id)
+        available = balance.available_quantity if balance else 0
+        if balance is None or available < quantity:
+            raise AppError(
+                "INSUFFICIENT_STOCK",
+                f"Insufficient inventory: {available} available, {quantity} requested",
+                status_code=409,
+                details={"variant_id": str(variant_id), "available": available},
+            )
+        balance.reserved_quantity += quantity
+
+    async def release(self, *, variant_id: uuid.UUID, branch_id: uuid.UUID, quantity: int) -> None:
+        balance = await self._locked_balance(variant_id, branch_id)
+        if balance:
+            balance.reserved_quantity = max(0, balance.reserved_quantity - quantity)
+
     async def movements(self, variant_id: uuid.UUID | None = None) -> list[MovementView]:
         query = select(InventoryMovement).where(
             InventoryMovement.organization_id == self.user.organization_id,

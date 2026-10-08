@@ -66,19 +66,40 @@ Source: [frontend/src/lib/syncEngine.ts](../frontend/src/lib/syncEngine.ts).
 
 The server also releases its own stuck rows: the Celery beat job `sync.release_stale_transactions` marks `sync_transactions` that have been `SYNCING` for more than 15 minutes as `FAILED`, so the device's retry can reprocess them.
 
+## An offline sale keeps its own facts
+
+Each queued sale carries the price paid per line (`unit_price`) and the moment it happened (`offline_created_at`). When the server imports it ([`SalesService.create_offline`](../backend/app/services/sales_service.py)):
+
+- it records the sale at its original time, so it counts toward the right business day. A device clock that runs ahead is clamped to the server's time plus five minutes;
+- it charges the prices the customer actually paid, even if the catalog changed since;
+- it accepts a variant that was deactivated after the sale;
+- it still checks totals, discount and payment, and a malformed sale is rejected as a permanent error.
+
+`synced_at` records when the server received the sale.
+
 ## Conflicts
 
-Example: offline POS A sells 3 units while online POS B sells the last 4.
+The server never rejects or deletes a completed offline sale because the world moved on, since money has already changed hands. It imports the sale and records a `sync_conflicts` row for manager review instead:
 
-The server does **not** reject or delete the offline sale. Money has already changed hands. Instead it:
+| Type | When | Details |
+| --- | --- | --- |
+| `INVENTORY_OVERSELL` | The ledger movement took physical stock below zero. Example: POS A sold 3 offline while POS B sold the last 4 | per line: SKU, quantity sold, stock before and after |
+| `PRICE_MISMATCH` | A line's paid price differs from the current catalog price | per line: SKU, paid price, catalog price |
 
-1. imports the sale and its payment,
-2. applies the ledger movement, which may take stock negative,
-3. records a `sync_conflicts` row of type `INVENTORY_OVERSELL`,
-4. raises an in-app `SYNC_CONFLICT` notification,
-5. lists the conflict in the Sync Center for manager review.
+Each conflict also raises an in-app `SYNC_CONFLICT` notification and appears in the Sync Center.
 
-This behavior is covered by `test_offline_oversell_keeps_sale_and_raises_conflict`.
+Tests:
+
+- `test_offline_oversell_keeps_sale_and_raises_conflict`
+- `test_oversell_conflict_names_the_lines`
+- `test_offline_sale_keeps_its_time_and_paid_price`
+- `test_offline_sale_of_a_since_deactivated_variant_is_imported`
+
+## Offline sign-in
+
+The signed-in user, never a token, is cached locally. After an offline reload the POS opens from that cache. A network failure during token refresh keeps the cached session, and only an explicit 401 from the server signs the user out. Token refresh is single-flight, because refresh tokens rotate and parallel refreshes would invalidate each other.
+
+The service worker never caches `/api/*` or `/health/*`, so the connectivity probe always reflects the real server.
 
 ## Reconciliation
 

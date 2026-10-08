@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
-from app.models.entities import Product, ProductVariant, User
+from app.models.entities import Category, Product, ProductVariant, User
 from app.schemas.products import ProductCreate, ProductPage, ProductUpdate, ProductView
 from app.services.audit_service import add_audit
 
@@ -50,7 +50,17 @@ class ProductService:
             raise AppError("PRODUCT_NOT_FOUND", "Product was not found", status_code=404)
         return product
 
+    async def _ensure_category(self, category_id: uuid.UUID | None) -> None:
+        if category_id and not await self.session.scalar(
+            select(Category.id).where(
+                Category.id == category_id,
+                Category.organization_id == self.user.organization_id,
+            )
+        ):
+            raise AppError("CATEGORY_NOT_FOUND", "Category was not found", status_code=404)
+
     async def create(self, command: ProductCreate) -> Product:
+        await self._ensure_category(command.category_id)
         product = Product(
             organization_id=self.user.organization_id,
             category_id=command.category_id,
@@ -96,6 +106,8 @@ class ProductService:
     async def update(self, product_id: uuid.UUID, command: ProductUpdate) -> Product:
         product = await self.get(product_id)
         changes = command.model_dump(exclude_unset=True)
+        if "category_id" in changes:
+            await self._ensure_category(changes["category_id"])
         old_data = {key: getattr(product, key) for key in changes}
         for key, value in changes.items():
             setattr(product, key, value)

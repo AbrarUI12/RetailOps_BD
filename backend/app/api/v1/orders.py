@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import SessionDep, require_permission
+from app.api.deps import SessionDep, ensure_permission, require_permission
 from app.models.entities import OrderStatus, User
 from app.schemas.operations import (
     CourierUpdateInput,
@@ -15,6 +15,12 @@ from app.schemas.operations import (
 from app.services.order_service import OrderService
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+TRANSITION_PERMISSIONS = {
+    OrderStatus.CONFIRMED: "order:confirm",
+    OrderStatus.CANCELLED: "order:cancel",
+    OrderStatus.SHIPPED: "shipment:create",
+}
 
 
 @router.get("", response_model=list[OrderView])
@@ -41,6 +47,8 @@ async def transition_order(
     session: SessionDep,
     user: Annotated[User, Depends(require_permission("order:write"))],
 ) -> OrderView:
+    # The generic endpoint must not bypass the dedicated confirm/cancel/ship permissions.
+    ensure_permission(user, TRANSITION_PERMISSIONS.get(command.status, "order:write"))
     return await OrderService(session, user).transition(order_id, command.status, command.note)
 
 

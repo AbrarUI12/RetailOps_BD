@@ -48,7 +48,16 @@ export function PosPage() {
     onSuccess: (result) => { if (result) { setReceipt(result); clear(); } },
   });
   async function completeSale() {
-    const payload: SalePayload = { items: lines.map((line) => ({ variant_id: line.variant.id, quantity: line.quantity })), payment_method: payment, amount_received: Number(amountReceived || total), discount, client_transaction_id: crypto.randomUUID() };
+    // unit_price and offline_created_at are the facts of the sale as the customer saw it; the server
+    // ignores them online and keeps them if this sale has to be synced later.
+    const payload: SalePayload = {
+      items: lines.map((line) => ({ variant_id: line.variant.id, quantity: line.quantity, unit_price: line.variant.price })),
+      payment_method: payment,
+      amount_received: Number(amountReceived || total),
+      discount,
+      client_transaction_id: crypto.randomUUID(),
+      offline_created_at: new Date().toISOString(),
+    };
     if (offline) { await saveOffline(payload); return; }
     checkout.mutate(payload);
   }

@@ -6,27 +6,54 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models.entities import PaymentMethod
 
+TENDER_METHODS = {PaymentMethod.CASH, PaymentMethod.BKASH, PaymentMethod.NAGAD, PaymentMethod.CARD}
+
 
 class SaleLineRequest(BaseModel):
     variant_id: uuid.UUID
     quantity: int = Field(gt=0, le=999)
 
 
+class PaymentLine(BaseModel):
+    method: PaymentMethod
+    amount: Decimal = Field(gt=0, decimal_places=2)
+
+
 class CreateSaleRequest(BaseModel):
     items: list[SaleLineRequest] = Field(min_length=1)
     payment_method: PaymentMethod
     amount_received: Decimal = Field(ge=0, decimal_places=2)
+    # Required for SPLIT: the tender lines, e.g. part bKash and part cash.
+    payments: list[PaymentLine] | None = Field(default=None, max_length=4)
     discount: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
     customer_id: uuid.UUID | None = None
     client_transaction_id: uuid.UUID | None = None
-    allow_inventory_conflict: bool = False
 
     @model_validator(mode="after")
-    def unique_variants(self) -> "CreateSaleRequest":
+    def validate_lines(self) -> "CreateSaleRequest":
         ids = [item.variant_id for item in self.items]
         if len(ids) != len(set(ids)):
             raise ValueError("Duplicate variants must be combined into one line")
+        if self.payment_method == PaymentMethod.COD:
+            raise ValueError("COD is for delivery orders, not POS sales")
+        if self.payment_method == PaymentMethod.SPLIT:
+            if not self.payments or len(self.payments) < 2:
+                raise ValueError("A split payment needs at least two payment lines")
+            if any(line.method not in TENDER_METHODS for line in self.payments):
+                raise ValueError("Split payment lines must be cash, bKash, Nagad or card")
         return self
+
+
+class OfflineSaleLine(SaleLineRequest):
+    # The price the customer actually paid on the device; absent in queues from older clients.
+    unit_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+
+
+class OfflineSalePayload(CreateSaleRequest):
+    """A sale completed on a device while offline. Its facts are kept as they happened."""
+
+    items: list[OfflineSaleLine] = Field(min_length=1)  # type: ignore[assignment]
+    offline_created_at: datetime | None = None
 
 
 class SaleLineView(BaseModel):
@@ -39,6 +66,11 @@ class SaleLineView(BaseModel):
     line_total: Decimal
 
 
+class PaymentView(BaseModel):
+    method: PaymentMethod
+    amount: Decimal
+
+
 class SaleView(BaseModel):
     id: uuid.UUID
     invoice_number: str
@@ -46,9 +78,12 @@ class SaleView(BaseModel):
     discount: Decimal
     total: Decimal
     payment_method: PaymentMethod
+    payments: list[PaymentView]
     amount_received: Decimal
     change_due: Decimal
     created_at: datetime
+    synced_offline: bool = False
     items: list[SaleLineView]
     idempotent_replay: bool = False
     inventory_conflict: bool = False
+    price_mismatch: bool = False
