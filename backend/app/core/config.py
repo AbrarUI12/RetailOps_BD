@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     allowed_hosts: list[str] = ["localhost", "127.0.0.1", "test", "testserver"]
     # Bare hostname of the deployed web app (Render's fromService `host`); served over HTTPS.
     frontend_host: str | None = None
+    # Run housekeeping jobs inside the API when there is no separate Celery worker.
+    run_scheduler: bool = False
     database_pool_size: int = 5
     database_max_overflow: int = 5
 

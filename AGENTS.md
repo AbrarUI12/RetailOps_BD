@@ -59,7 +59,7 @@ This file is the living implementation record for contributors and coding agents
 
 ### Session 27 — Deployment (prepared, not yet applied)
 
-- `render.yaml` defines five services: static site, Docker API, Docker Celery worker, Key Value and Postgres 17. It validates against Render's JSON schema.
+- `render.yaml` defines four free services: static site, Docker API (which runs the housekeeping scheduler in-process), Key Value and Postgres 17. It validates against Render's JSON schema.
 - The static site proxies `/api/*` and `/health/*` to the API. This keeps the refresh cookie first-party: `onrender.com` is a public suffix, so the two subdomains are cross-site.
 - The API boots via `backend/scripts/start_api.sh`: migrate → optional demo seed (`APP_SEED_DEMO`) → uvicorn with proxy headers.
 - CI adds a PostgreSQL job (migration round-trip, idempotent seed, full suite) and a production image build.
@@ -68,7 +68,7 @@ This file is the living implementation record for contributors and coding agents
 
 ## Next
 
-1. **Apply the Blueprint** on Render, which needs the account owner. The worker requires the paid Starter plan.
+1. **Apply the Blueprint** on Render, which needs the account owner. Every service is on a free plan.
    - Confirm the assigned hostnames match `render.yaml`.
    - Run `python backend/scripts/smoke_test.py https://retailops-bd.onrender.com --demo`.
    - Confirm the wildcard rewrites to the external API URL behave as expected.

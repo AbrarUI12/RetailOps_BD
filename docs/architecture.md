@@ -70,7 +70,7 @@ stateDiagram-v2
 
 ## Background jobs
 
-Celery beat runs inside the single worker process:
+Locally, Celery beat runs inside the single worker process. On Render (no worker), `app/core/scheduler.py` runs the same jobs inside the API when `APP_RUN_SCHEDULER=true`:
 
 | Task | Schedule | Purpose |
 | --- | --- | --- |

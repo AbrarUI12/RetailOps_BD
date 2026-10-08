@@ -1,7 +1,9 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entities import Notification, Organization, SyncStatus, SyncTransaction
 from app.services.housekeeping_service import (
@@ -49,3 +51,38 @@ async def test_stale_syncing_transaction_is_released_for_retry(
         await session.refresh(fresh)
         assert stale.status == SyncStatus.FAILED
         assert fresh.status == SyncStatus.SYNCING
+
+
+async def test_scheduler_runs_due_jobs_and_survives_failures(db_client: DatabaseHarness) -> None:
+    from app.core.scheduler import Scheduler
+
+    calls: list[str] = []
+
+    async def ok(_: AsyncSession) -> int:
+        calls.append("ok")
+        return 1
+
+    async def broken(_: AsyncSession) -> int:
+        raise RuntimeError("boom")
+
+    now = [1000.0]
+    scheduler = Scheduler(
+        db_client.sessions, (("ok", 60, ok), ("broken", 60, broken)), clock=lambda: now[0]
+    )
+
+    assert await scheduler.tick() == ["ok", "broken"]
+    assert await scheduler.tick() == []
+    now[0] += 61
+    assert await scheduler.tick() == ["ok", "broken"]
+    assert calls == ["ok", "ok"]
+
+
+async def test_scheduler_default_jobs_run_against_database(db_client: DatabaseHarness) -> None:
+    from app.core.scheduler import Scheduler
+
+    scheduler = Scheduler(db_client.sessions)
+    scheduler.start(poll_seconds=0.01)
+    await asyncio.sleep(0.05)
+    await scheduler.stop()
+
+    assert all(job.next_run > 0 for job in scheduler.jobs)

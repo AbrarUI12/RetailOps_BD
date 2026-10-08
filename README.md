@@ -43,7 +43,7 @@ flowchart LR
   API --> SVC["Python services<br/>sales · inventory · orders · sync · reports"]
   SVC --> PG[("PostgreSQL<br/>authoritative")]
   SVC --> R[("Redis")]
-  W["Celery worker + beat<br/>low-stock alerts · stale sync release"] --> R
+  W["Housekeeping jobs<br/>Celery beat locally · in-API scheduler on Render<br/>low-stock alerts · stale sync release"] --> R
   W --> PG
 ```
 

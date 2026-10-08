@@ -34,52 +34,15 @@ services:
       # Public portfolio demo environment only; never enable for a real tenant.
       - key: APP_SEED_DEMO
         value: "true"
+      # Housekeeping jobs run inside this single API process; there is no paid worker.
+      - key: APP_RUN_SCHEDULER
+        value: "true"
       - key: WEB_CONCURRENCY
         value: "1"
       - key: APP_DATABASE_POOL_SIZE
         value: "5"
       - key: APP_DATABASE_MAX_OVERFLOW
         value: "5"
-      - key: APP_DATABASE_URL
-        fromDatabase:
-          name: retailops-bd-postgres
-          property: connectionString
-      - key: APP_REDIS_URL
-        fromService:
-          name: retailops-bd-cache
-          type: keyvalue
-          property: connectionString
-
-  # Background workers have no free instance type on Render; starter is the smallest plan.
-  - type: worker
-    name: retailops-bd-worker
-    runtime: docker
-    plan: starter
-    region: singapore
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    # --beat embeds the scheduler (low-stock alerts, stale sync release); run exactly one instance.
-    dockerCommand: celery -A app.tasks.celery_app:celery_app worker --beat --schedule /tmp/celerybeat-schedule --loglevel=INFO --concurrency=2
-    autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 30
-    envVars:
-      - key: APP_ENV
-        value: production
-      - key: APP_DEBUG
-        value: "false"
-      - key: APP_SECRET_KEY
-        fromService:
-          name: retailops-bd-api
-          type: web
-          envVarKey: APP_SECRET_KEY
-      - key: APP_SECURE_COOKIES
-        value: "true"
-      - key: APP_FRONTEND_HOST
-        value: retailops-bd.onrender.com
-      - key: APP_DATABASE_POOL_SIZE
-        value: "2"
-      - key: APP_DATABASE_MAX_OVERFLOW
-        value: "0"
       - key: APP_DATABASE_URL
         fromDatabase:
           name: retailops-bd-postgres
