@@ -43,6 +43,7 @@ services:
       APP_DATABASE_URL: postgresql+psycopg://retailops:retailops@postgres:5432/retailops
       APP_REDIS_URL: redis://redis:6379/0
       APP_CORS_ORIGINS: '["http://localhost:5173"]'
+    command: ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
       - "8000:8000"
     volumes:
@@ -65,7 +66,7 @@ services:
     build:
       context: ./backend
       target: development
-    command: ["uv", "run", "celery", "-A", "app.tasks.celery_app:celery_app", "worker", "--loglevel=INFO"]
+    command: ["uv", "run", "celery", "-A", "app.tasks.celery_app:celery_app", "worker", "--beat", "--schedule", "/tmp/celerybeat-schedule", "--loglevel=INFO"]
     environment:
       APP_ENV: development
       APP_DEBUG: "true"

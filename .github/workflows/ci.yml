@@ -29,6 +29,48 @@ jobs:
       - run: uv run pytest
         working-directory: backend
 
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: retailops
+          POSTGRES_PASSWORD: retailops
+          POSTGRES_DB: retailops
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U retailops" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_DATABASE_URL: postgresql+psycopg://retailops:retailops@localhost:5432/retailops
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+          python-version: "3.13.16"
+          enable-cache: true
+      - run: uv sync --frozen
+        working-directory: backend
+      - name: Migrate a fresh database and check for model drift
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+        working-directory: backend
+      - name: Seed the demo tenant twice (must be idempotent)
+        run: uv run python -m scripts.seed_demo && uv run python -m scripts.seed_demo
+        working-directory: backend
+      - name: Run the test suite on PostgreSQL
+        run: |
+          PGPASSWORD=retailops psql -h localhost -U retailops -c "CREATE DATABASE retailops_test"
+          uv run pytest
+        working-directory: backend
+        env:
+          APP_TEST_DATABASE_URL: postgresql+psycopg://retailops:retailops@localhost:5432/retailops_test
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -54,4 +96,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet
+      - name: Build the production API image
+        run: docker build --target production -t retailops-bd-api ./backend
 

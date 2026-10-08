@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+#
+# RetailOps BD production Blueprint. See docs/deployment.md before applying.
+# The browser only talks to the static site: /api/* and /health/* are proxied to the API so the
+# refresh cookie stays first-party (onrender.com subdomains are separate sites to browsers).
+# If Render assigns a suffixed hostname to either web service, update the rewrite destinations and
+# APP_FRONTEND_HOST below to match.
+
+services:
+  - type: web
+    name: retailops-bd-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Dockerfile CMD runs scripts/start_api.sh: migrate → optional demo seed → uvicorn with proxy headers.
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: APP_SECURE_COOKIES
+        value: "true"
+      - key: APP_ALLOWED_HOSTS
+        value: '["*.onrender.com"]'
+      - key: APP_FRONTEND_HOST
+        value: retailops-bd.onrender.com
+      # Public portfolio demo environment only; never enable for a real tenant.
+      - key: APP_SEED_DEMO
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: APP_DATABASE_POOL_SIZE
+        value: "5"
+      - key: APP_DATABASE_MAX_OVERFLOW
+        value: "5"
+      - key: APP_DATABASE_URL
+        fromDatabase:
+          name: retailops-bd-postgres
+          property: connectionString
+      - key: APP_REDIS_URL
+        fromService:
+          name: retailops-bd-cache
+          type: keyvalue
+          property: connectionString
+
+  # Background workers have no free instance type on Render; starter is the smallest plan.
+  - type: worker
+    name: retailops-bd-worker
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # --beat embeds the scheduler (low-stock alerts, stale sync release); run exactly one instance.
+    dockerCommand: celery -A app.tasks.celery_app:celery_app worker --beat --schedule /tmp/celerybeat-schedule --loglevel=INFO --concurrency=2
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_SECRET_KEY
+        fromService:
+          name: retailops-bd-api
+          type: web
+          envVarKey: APP_SECRET_KEY
+      - key: APP_SECURE_COOKIES
+        value: "true"
+      - key: APP_FRONTEND_HOST
+        value: retailops-bd.onrender.com
+      - key: APP_DATABASE_POOL_SIZE
+        value: "2"
+      - key: APP_DATABASE_MAX_OVERFLOW
+        value: "0"
+      - key: APP_DATABASE_URL
+        fromDatabase:
+          name: retailops-bd-postgres
+          property: connectionString
+      - key: APP_REDIS_URL
+        fromService:
+          name: retailops-bd-cache
+          type: keyvalue
+          property: connectionString
+
+  - type: web
+    name: retailops-bd
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: checksPass
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://retailops-bd-api.onrender.com/api/*
+      - type: rewrite
+        source: /health/*
+        destination: https://retailops-bd-api.onrender.com/health/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      # The service worker and shell must revalidate so new deploys reach installed PWAs.
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
+  - type: keyvalue
+    name: retailops-bd-cache
+    plan: free
+    region: singapore
+    # Celery's broker must not lose queued tasks under memory pressure.
+    maxmemoryPolicy: noeviction
+    ipAllowList: [] # private network only
+
+databases:
+  - name: retailops-bd-postgres
+    databaseName: retailops
+    user: retailops
+    plan: free
+    region: singapore
+    postgresMajorVersion: "17"
+    ipAllowList: [] # private network only
