@@ -35,9 +35,62 @@
 .state-tabs { margin: var(--space-5) var(--space-5) 0; }
 .state-stage { min-height: 340px; }
 
+/* Supplier purchasing and ledger-backed stock receiving. */
+.page-actions, .purchase-row-actions { display: flex; align-items: center; gap: var(--space-2); }
+.purchase-reference { display: grid; gap: 2px; }
+.purchase-reference small { color: var(--text-muted); font-size: var(--text-caption); }
+.purchase-row-actions { justify-content: flex-end; }
+.purchase-dialog { width: min(980px, calc(100vw - var(--space-6))); max-height: min(860px, calc(100vh - var(--space-6))); overflow-y: auto; }
+.purchase-form { display: grid; gap: var(--space-5); margin-top: var(--space-5); }
+.purchase-basics { margin-top: 0; }
+.purchase-line-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.purchase-line-heading > span { display: grid; gap: 2px; }
+.purchase-line-heading small { color: var(--text-muted); font-size: var(--text-caption); }
+.purchase-lines { display: grid; gap: var(--space-3); }
+.purchase-line { display: grid; grid-template-columns: 28px minmax(260px, 1fr) 104px 132px 130px 40px; align-items: end; gap: var(--space-3); padding: var(--space-3); background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.purchase-line-number { display: grid; width: 28px; height: 28px; place-items: center; align-self: center; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-pill); font-size: var(--text-caption); font-weight: var(--weight-semibold); }
+.purchase-line-total { display: grid; align-self: center; gap: 2px; text-align: right; font-variant-numeric: tabular-nums; }
+.purchase-line-total small { color: var(--text-muted); font-size: var(--text-caption); font-weight: var(--weight-regular); }
+.purchase-form-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.purchase-form-footer > span { display: flex; align-items: baseline; gap: var(--space-2); color: var(--text-muted); }
+.purchase-form-footer strong { color: var(--text); font-size: var(--text-title); font-variant-numeric: tabular-nums; }
+.supplier-dialog { width: min(720px, calc(100vw - var(--space-6))); }
+.supplier-form { display: grid; grid-template-columns: 1.3fr 1fr 1.3fr auto; align-items: end; gap: var(--space-3); margin-top: var(--space-5); }
+.supplier-list { display: grid; max-height: 320px; gap: 0; margin-top: var(--space-5); overflow-y: auto; border-top: 1px solid var(--border-subtle); }
+.supplier-list > div { display: flex; min-height: 64px; align-items: center; gap: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.supplier-list > div > span:last-child { display: grid; gap: 2px; }
+.supplier-list small, .supplier-list > p { color: var(--text-muted); font-size: var(--text-caption); }
+.supplier-icon { display: grid; width: 34px; height: 34px; place-items: center; color: var(--brand-strong); background: var(--brand-soft); border-radius: var(--radius-sm); }
+.purchase-detail { display: grid; gap: var(--space-5); }
+.purchase-detail-lines { display: grid; border-block: 1px solid var(--border-subtle); }
+.purchase-detail-lines > div { display: grid; grid-template-columns: 1fr auto 120px; align-items: center; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
+.purchase-detail-lines > div:last-child { border-bottom: 0; }
+.purchase-detail-lines > div > span:first-child { display: grid; gap: 2px; }
+.purchase-detail-lines small { color: var(--text-muted); font-size: var(--text-caption); }
+.purchase-detail-lines > div > span:nth-child(2), .purchase-detail-lines > div > strong { text-align: right; font-variant-numeric: tabular-nums; }
+.purchase-detail-total, .receive-preview { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.purchase-detail-total { padding: var(--space-4); background: var(--surface-subtle); border-radius: var(--radius-md); }
+.purchase-detail-total strong { font-size: var(--text-title); font-variant-numeric: tabular-nums; }
+.purchase-ledger-note { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; padding: var(--space-3); color: var(--text-muted); background: var(--brand-soft); border-radius: var(--radius-md); }
+.purchase-ledger-note svg { flex: none; color: var(--brand-strong); }
+.receive-preview { padding: var(--space-3); background: var(--surface-subtle); border-radius: var(--radius-md); }
+
 @media (max-width: 760px) {
   .sync-summary, .report-grid, .activity-grid { grid-template-columns: 1fr; }
   .report-grid .card:first-child { grid-column: auto; }
   .sync-hero { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
   .state-tabs { margin-inline: var(--space-3); }
+  .page-actions { width: 100%; }
+  .page-actions .button { flex: 1; }
+  .purchase-dialog { width: 100vw; max-height: 100dvh; }
+  .purchase-line { grid-template-columns: 28px 1fr 40px; }
+  .purchase-line .field:first-of-type { grid-column: 2; }
+  .purchase-line .field:nth-of-type(2), .purchase-line .field:nth-of-type(3) { grid-column: span 1; }
+  .purchase-line-total { grid-column: 2; text-align: left; }
+  .purchase-line > .button { grid-column: 3; grid-row: 1; }
+  .purchase-form-footer { justify-content: space-between; }
+  .supplier-form { grid-template-columns: 1fr; }
+  .supplier-form .button { width: 100%; }
+  .purchase-detail-lines > div { grid-template-columns: 1fr auto; }
+  .purchase-detail-lines > div > strong { grid-column: 2; }
 }

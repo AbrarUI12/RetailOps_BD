@@ -5,11 +5,14 @@ from sqlalchemy import func, select
 
 from app.models.entities import (
     AuditLog,
+    Branch,
+    InventoryBalance,
     InventoryMovement,
     Payment,
     Sale,
     SyncConflict,
     SyncTransaction,
+    User,
 )
 from tests.conftest import DatabaseHarness
 from tests.test_api_workflows import login
@@ -380,6 +383,18 @@ async def test_receiving_a_purchase_twice_adds_stock_once(db_client: DatabaseHar
     )
     assert purchase.status_code == 201
     assert purchase.json()["total"] == "5400.00"
+    assert purchase.json()["supplier_name"] == "Tangail Weavers"
+    assert purchase.json()["items"] == [
+        {
+            "variant_id": variant_id,
+            "product_name": purchase.json()["items"][0]["product_name"],
+            "variant_name": "Default",
+            "sku": purchase.json()["items"][0]["sku"],
+            "quantity": 12,
+            "unit_cost": "450.00",
+            "line_total": "5400.00",
+        }
+    ]
 
     for _ in range(2):
         received = await client.post(
@@ -388,3 +403,101 @@ async def test_receiving_a_purchase_twice_adds_stock_once(db_client: DatabaseHar
         assert received.json()["status"] == "RECEIVED"
 
     assert (await stock_of(client, headers, variant_id))["physical"] == 12
+    async with db_client.sessions() as session:
+        movement_count = await session.scalar(
+            select(func.count(InventoryMovement.id)).where(
+                InventoryMovement.reference_id == uuid.UUID(purchase.json()["id"]),
+                InventoryMovement.movement_type == "PURCHASE_RECEIPT",
+            )
+        )
+    assert movement_count == 1
+
+
+async def test_purchase_rejects_unknown_and_duplicate_variants(
+    db_client: DatabaseHarness,
+) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 0)
+    supplier = (
+        await client.post("/api/v1/suppliers", headers=headers, json={"name": "Aarong Trade"})
+    ).json()
+    base = {
+        "supplier_id": supplier["id"],
+        "reference": "PO-VALIDATION",
+        "items": [{"variant_id": variant_id, "quantity": 2, "unit_cost": "100.00"}],
+    }
+
+    unknown = await client.post(
+        "/api/v1/purchases",
+        headers=headers,
+        json={**base, "items": [{**base["items"][0], "variant_id": str(uuid.uuid4())}]},
+    )
+    assert unknown.status_code == 404
+    assert unknown.json()["error"]["code"] == "VARIANT_NOT_FOUND"
+
+    duplicate = await client.post(
+        "/api/v1/purchases",
+        headers=headers,
+        json={**base, "items": [base["items"][0], base["items"][0]]},
+    )
+    assert duplicate.status_code == 422
+    assert duplicate.json()["error"]["code"] == "DUPLICATE_PURCHASE_ITEM"
+
+    created = await client.post("/api/v1/purchases", headers=headers, json=base)
+    assert created.status_code == 201
+    repeated = await client.post("/api/v1/purchases", headers=headers, json=base)
+    assert repeated.status_code == 409
+    assert repeated.json()["error"]["code"] == "DUPLICATE_PURCHASE_REFERENCE"
+
+
+async def test_purchase_receipt_uses_the_purchase_branch(
+    db_client: DatabaseHarness,
+) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 0)
+    supplier = (
+        await client.post("/api/v1/suppliers", headers=headers, json={"name": "Branch Supplier"})
+    ).json()
+    purchase = (
+        await client.post(
+            "/api/v1/purchases",
+            headers=headers,
+            json={
+                "supplier_id": supplier["id"],
+                "reference": "PO-BRANCH",
+                "items": [{"variant_id": variant_id, "quantity": 7, "unit_cost": "80.00"}],
+            },
+        )
+    ).json()
+    purchase_branch_id = uuid.UUID(purchase["branch_id"])
+
+    async with db_client.sessions() as session:
+        owner = await session.scalar(select(User).where(User.email == "owner@retailopsbd.com"))
+        assert owner is not None
+        other_branch = Branch(
+            organization_id=owner.organization_id,
+            name="Warehouse",
+            code="WH",
+            address="Gazipur",
+        )
+        session.add(other_branch)
+        await session.flush()
+        owner.branch_id = other_branch.id
+        await session.commit()
+        other_branch_id = other_branch.id
+
+    received = await client.post(f"/api/v1/purchases/{purchase['id']}/receive", headers=headers)
+    assert received.status_code == 200
+
+    async with db_client.sessions() as session:
+        balances = (
+            await session.scalars(
+                select(InventoryBalance).where(InventoryBalance.variant_id == uuid.UUID(variant_id))
+            )
+        ).all()
+    assert [(balance.branch_id, balance.physical_quantity) for balance in balances] == [
+        (purchase_branch_id, 7)
+    ]
+    assert all(balance.branch_id != other_branch_id for balance in balances)

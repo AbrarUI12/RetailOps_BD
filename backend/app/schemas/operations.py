@@ -246,13 +246,26 @@ class PurchaseCreate(BaseModel):
     items: list[PurchaseLineInput] = Field(min_length=1)
 
 
+class PurchaseItemView(BaseModel):
+    variant_id: uuid.UUID
+    product_name: str
+    variant_name: str
+    sku: str
+    quantity: int
+    unit_cost: Decimal
+    line_total: Decimal
+
+
 class PurchaseView(BaseModel):
     id: uuid.UUID
     reference: str
     supplier_id: uuid.UUID
+    supplier_name: str
+    branch_id: uuid.UUID
     status: str
     total: Decimal
     created_at: datetime
+    items: list[PurchaseItemView]
 
 
 class NotificationView(BaseModel):
