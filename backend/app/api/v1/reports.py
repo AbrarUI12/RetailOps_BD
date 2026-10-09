@@ -53,3 +53,20 @@ async def sales_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="sales-{first}-to-{last}.csv"'},
     )
+
+
+@router.get("/products.csv", response_class=Response)
+async def products_csv(
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("report:read"))],
+    start: Annotated[date | None, Query()] = None,
+    end: Annotated[date | None, Query()] = None,
+) -> Response:
+    today = business_today()
+    first, last = start or today, end or today
+    body = await ReportService(session, user).products_csv(first, last)
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="products-{first}-to-{last}.csv"'},
+    )

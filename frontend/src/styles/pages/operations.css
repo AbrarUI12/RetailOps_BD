@@ -30,6 +30,21 @@
 .report-metrics { margin-bottom: var(--space-3); }
 .report-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
 .report-grid .card:first-child { grid-column: 1 / -1; }
+.report-filter-card { margin-bottom: var(--space-3); }
+.report-filters { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
+.report-filters .category-pills { margin: 0; }
+.report-dates { display: grid; grid-template-columns: repeat(2, minmax(150px, 190px)); gap: var(--space-3); }
+.report-products-card .card-content { padding-top: 0; }
+.report-product { display: grid; gap: 2px; }
+.report-product small { color: var(--text-muted); font-size: var(--text-caption); }
+.report-stat-row { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); }
+.report-stat-row:last-child { border-bottom: 0; }
+.report-stat-row span { color: var(--text-muted); }
+.report-stat-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.report-stat-row strong.danger { color: var(--danger-strong); }
+.report-stat-row strong.success { color: var(--success-strong); }
+.report-footnote { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-4) 0 0; color: var(--text-muted); font-size: var(--text-caption); }
+.report-footnote svg { flex: none; }
 
 .workspace-preview { min-height: 470px; }
 .state-tabs { margin: var(--space-5) var(--space-5) 0; }
@@ -78,6 +93,8 @@
 @media (max-width: 760px) {
   .sync-summary, .report-grid, .activity-grid { grid-template-columns: 1fr; }
   .report-grid .card:first-child { grid-column: auto; }
+  .report-filters { align-items: stretch; flex-direction: column; }
+  .report-dates { width: 100%; grid-template-columns: 1fr 1fr; }
   .sync-hero { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
   .state-tabs { margin-inline: var(--space-3); }
   .page-actions { width: 100%; }

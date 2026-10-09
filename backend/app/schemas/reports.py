@@ -75,7 +75,10 @@ class DashboardReport(BaseModel):
 class SalesSummary(BaseModel):
     transactions: int
     revenue: Decimal
+    refunds: Decimal
+    net_revenue: Decimal
     discount: Decimal
+    cost_of_goods_sold: Decimal
     gross_profit: Decimal
     average_sale: Decimal
     offline_synced: int
@@ -87,13 +90,18 @@ class ProductPerformance(BaseModel):
     variant_name: str
     sku: str
     quantity: int
+    returned_quantity: int
+    net_quantity: int
     revenue: Decimal
+    cost: Decimal
     gross_profit: Decimal
+    margin: float | None
 
 
 class InventorySummary(BaseModel):
     units_on_hand: int
     units_reserved: int
+    units_available: int
     cost_value: Decimal
     retail_value: Decimal
     low_stock: int
@@ -107,6 +115,10 @@ class OutcomeSummary(BaseModel):
     by_risk: dict[str, int]
     delivered: int
     returned: int
+    collected: Decimal
+    pending: Decimal
+    failed: Decimal
+    return_loss: Decimal
     delivery_rate: float | None
 
 
@@ -115,6 +127,9 @@ class CourierSummary(BaseModel):
     delivered: int
     returned: int
     in_transit: int
+    failed: int
+    by_provider: dict[str, int]
+    by_status: dict[str, int]
     delivery_rate: float | None
 
 

@@ -61,8 +61,15 @@ async def test_courier_updates_drive_order_to_delivery(db_client: DatabaseHarnes
         "delivered": 1,
         "returned": 0,
         "in_transit": 0,
+        "failed": 0,
+        "by_provider": {"MOCK_COURIER": 1},
+        "by_status": {"DELIVERED": 1},
         "delivery_rate": 1.0,
     }
+    assert report["cod"]["collected"] == "2060.00"
+    assert report["cod"]["pending"] == "0.00"
+    assert report["cod"]["failed"] == "0.00"
+    assert report["cod"]["return_loss"] == "0.00"
 
 
 async def test_returned_parcel_is_failed_delivery_and_can_be_restocked(
@@ -88,6 +95,13 @@ async def test_returned_parcel_is_failed_delivery_and_can_be_restocked(
 
     assert restock.status_code == 201
     assert (await stock_of(client, headers, variant_id))["physical"] == 10
+    report = (await client.get("/api/v1/reports/summary", headers=headers)).json()
+    assert report["cod"]["collected"] == "0.00"
+    assert report["cod"]["pending"] == "0.00"
+    assert report["cod"]["failed"] == "2060.00"
+    assert report["cod"]["return_loss"] == "2060.00"
+    assert report["courier"]["returned"] == 1
+    assert report["courier"]["by_status"] == {"RETURNED": 1}
 
 
 async def test_repeated_courier_update_is_recorded_once(db_client: DatabaseHarness) -> None:

@@ -1,8 +1,10 @@
+import uuid
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import select, update
 
-from app.models.entities import Branch, Organization, Sale
+from app.models.entities import Branch, Organization, ProductVariant, Sale
 from app.utils.time import business_day_start, business_today
 from tests.conftest import DatabaseHarness
 from tests.test_operations_workflows import create_order, owner_headers, stocked_variant
@@ -37,14 +39,91 @@ async def test_summary_report_covers_sales_inventory_and_cod(db_client: Database
     assert body["start"] == body["end"] == business_today().isoformat()
     assert body["sales"]["transactions"] == 1
     assert body["sales"]["revenue"] == "1900.00"
+    assert body["sales"]["refunds"] == "0.00"
+    assert body["sales"]["net_revenue"] == "1900.00"
     assert body["sales"]["discount"] == "100.00"
     assert body["sales"]["by_payment_method"] == {"BKASH": "1900.00"}
     assert body["top_products"][0]["quantity"] == 2
     assert body["inventory"]["units_on_hand"] == 8
+    assert body["inventory"]["units_available"] == 8
     assert body["inventory"]["retail_value"] == "8000.00"
     assert body["cod"]["total"] == 1
     assert body["cod"]["by_status"] == {"CANCELLED": 1}
     assert body["cod"]["delivery_rate"] is None
+
+
+async def test_report_accounts_for_discounted_refunds_cost_and_margin(
+    db_client: DatabaseHarness,
+) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 5)
+    async with db_client.sessions() as session:
+        await session.execute(
+            update(ProductVariant)
+            .where(ProductVariant.id == uuid.UUID(variant_id))
+            .values(cost=Decimal("400.00"))
+        )
+        await session.commit()
+
+    sale = await client.post(
+        "/api/v1/pos/sales",
+        headers=headers,
+        json={
+            "items": [{"variant_id": variant_id, "quantity": 2}],
+            "payment_method": "BKASH",
+            "amount_received": "1800.00",
+            "discount": "200.00",
+        },
+    )
+    assert sale.status_code == 201
+    returned = await client.post(
+        f"/api/v1/pos/sales/{sale.json()['id']}/refund",
+        headers=headers,
+        json={
+            "reason": "Size exchange",
+            "items": [{"variant_id": variant_id, "quantity": 1, "disposition": "SELLABLE"}],
+        },
+    )
+    assert returned.status_code == 201
+
+    response = await client.get("/api/v1/reports/summary", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sales"] == {
+        "transactions": 1,
+        "revenue": "1800.00",
+        "refunds": "900.00",
+        "net_revenue": "900.00",
+        "discount": "200.00",
+        "cost_of_goods_sold": "400.00",
+        "gross_profit": "500.00",
+        "average_sale": "1800.00",
+        "offline_synced": 0,
+        "by_payment_method": {"BKASH": "1800.00"},
+    }
+    assert body["top_products"] == [
+        {
+            "product_name": sale.json()["items"][0]["product_name"],
+            "variant_name": "Default",
+            "sku": sale.json()["items"][0]["sku"],
+            "quantity": 2,
+            "returned_quantity": 1,
+            "net_quantity": 1,
+            "revenue": "900.00",
+            "cost": "400.00",
+            "gross_profit": "500.00",
+            "margin": 0.5556,
+        }
+    ]
+    assert body["inventory"]["units_on_hand"] == 4
+    assert body["inventory"]["units_available"] == 4
+
+    csv_response = await client.get("/api/v1/reports/products.csv", headers=headers)
+    assert csv_response.status_code == 200
+    assert csv_response.headers["content-type"].startswith("text/csv")
+    assert csv_response.text.splitlines()[0].startswith("sku,product,variant,units_sold")
+    assert ",2,1,1,900.00,400.00,500.00,0.5556" in csv_response.text
 
 
 async def test_sales_belong_to_the_dhaka_calendar_day(db_client: DatabaseHarness) -> None:
