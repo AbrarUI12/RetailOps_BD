@@ -112,6 +112,21 @@
 .shipment-event p { margin: 2px 0; color: var(--text-muted); }
 .shipment-event time { color: var(--text-muted); font-size: var(--text-caption); }
 .courier-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.return-panel { display: grid; gap: var(--space-3); }
+.return-heading, .return-heading > div { display: flex; align-items: center; gap: var(--space-3); }
+.return-heading { justify-content: space-between; }
+.return-heading > div > span { display: grid; gap: 2px; }
+.return-heading h3, .return-heading p { margin: 0; }
+.return-heading p, .return-empty { color: var(--text-muted); }
+.return-history { display: grid; border-top: 1px solid var(--border-subtle); }
+.return-history > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+.return-history > div > span:first-child { display: grid; }
+.return-history small { color: var(--text-muted); font-size: var(--text-caption); }
+.return-dialog { width: min(680px, calc(100vw - var(--space-6))); }
+.return-lines { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
+.return-line { display: grid; grid-template-columns: minmax(150px, 1fr) 110px minmax(200px, 1fr); align-items: end; gap: var(--space-3); padding: var(--space-3); background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.return-line > span { display: grid; align-self: center; }
+.return-line small { color: var(--text-muted); font-size: var(--text-caption); }
 .order-detail-actions { position: sticky; bottom: calc(var(--space-6) * -1); display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) 0 var(--space-5); background: linear-gradient(to bottom, transparent, var(--surface-raised) 20%); }
 @media (max-width: 1100px) {
   .order-filters { grid-template-columns: minmax(220px, 1fr) 1fr 1fr; }
@@ -129,4 +144,6 @@
   .order-detail-sheet { width: 100vw; max-width: 100vw; }
   .order-detail-metrics { grid-template-columns: repeat(3, 1fr); }
   .detail-totals { grid-template-columns: 1fr; }
+  .return-heading, .return-history > div { align-items: flex-start; flex-direction: column; }
+  .return-line { grid-template-columns: 1fr; }
 }

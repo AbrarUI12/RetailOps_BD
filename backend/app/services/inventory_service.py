@@ -185,7 +185,9 @@ class InventoryService:
         reference_type: str | None = None,
         reference_id: uuid.UUID | None = None,
         allow_negative: bool = False,
+        branch_id: uuid.UUID | None = None,
     ) -> InventoryMovement:
+        target_branch_id = branch_id or self.user.branch_id
         variant = await self.session.scalar(
             select(ProductVariant).where(
                 ProductVariant.id == variant_id,
@@ -197,7 +199,8 @@ class InventoryService:
         balance = await self.session.scalar(
             select(InventoryBalance)
             .where(
-                InventoryBalance.branch_id == self.user.branch_id,
+                InventoryBalance.organization_id == self.user.organization_id,
+                InventoryBalance.branch_id == target_branch_id,
                 InventoryBalance.variant_id == variant_id,
             )
             .with_for_update()
@@ -205,7 +208,7 @@ class InventoryService:
         if balance is None:
             balance = InventoryBalance(
                 organization_id=self.user.organization_id,
-                branch_id=self.user.branch_id,
+                branch_id=target_branch_id,
                 variant_id=variant_id,
                 physical_quantity=0,
                 reserved_quantity=0,
@@ -225,7 +228,7 @@ class InventoryService:
         balance.physical_quantity = new_quantity
         movement = InventoryMovement(
             organization_id=self.user.organization_id,
-            branch_id=self.user.branch_id,
+            branch_id=target_branch_id,
             variant_id=variant_id,
             movement_type=movement_type,
             quantity_delta=quantity_delta,

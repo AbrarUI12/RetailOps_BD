@@ -117,6 +117,11 @@ const detail = {
   shipment_booked: false,
 };
 const readyOrder = { ...order, status: "READY_FOR_SHIPMENT" };
+const failedOrder = {
+  ...order,
+  status: "FAILED_DELIVERY",
+  items: [{ ...order.items[0], quantity: 3 }],
+};
 const shipment = {
   id: "s1",
   order_id: "o1",
@@ -184,6 +189,7 @@ describe("fast manual order entry", () => {
           "order:confirm",
           "order:cancel",
           "shipment:create",
+          "return:create",
         ],
       },
     });
@@ -391,6 +397,73 @@ describe("fast manual order entry", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     );
+    await expectNoAxeViolations(container);
+  });
+
+  it("receives an RTO with an explicit disposition and shows its history", async () => {
+    let records: Record<string, unknown>[] = [];
+    apiMock.mockImplementation((path, init) => {
+      if (path === "/api/v1/returns" && init?.method === "POST") {
+        const body = requestBody(init);
+        const record = {
+          id: "r1",
+          order_id: "o1",
+          status: "RECEIVED",
+          reason: body.reason,
+          created_at: "2026-10-09T08:00:00Z",
+          items: body.items,
+        };
+        records = [record];
+        return Promise.resolve(record);
+      }
+      if (path === "/api/v1/returns?order_id=o1")
+        return Promise.resolve(records);
+      if (path === "/api/v1/orders/o1")
+        return Promise.resolve({ ...detail, order: failedOrder });
+      if (path.startsWith("/api/v1/orders"))
+        return Promise.resolve([failedOrder]);
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    const { container } = renderPage();
+    await user.click(
+      (
+        await screen.findAllByRole("button", {
+          name: "View ORD-20261009-ABC123",
+        })
+      )[0],
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Receive return" }),
+    );
+    await user.clear(screen.getByLabelText("Quantity for Premium Panjabi"));
+    await user.type(screen.getByLabelText("Quantity for Premium Panjabi"), "2");
+    await user.selectOptions(screen.getByLabelText("Condition"), "DAMAGED");
+    await user.type(
+      screen.getByLabelText("Return reason"),
+      "Customer refused parcel",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Confirm received goods" }),
+    );
+    await waitFor(() =>
+      expect(apiMock).toHaveBeenCalledWith(
+        "/api/v1/returns",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    const call = apiMock.mock.calls.find(
+      ([path, init]) => path === "/api/v1/returns" && init?.method === "POST",
+    );
+    expect(requestBody(call?.[1] as RequestInit)).toMatchObject({
+      order_id: "o1",
+      reason: "Customer refused parcel",
+      items: [{ variant_id: "v1", quantity: 2, disposition: "DAMAGED" }],
+    });
+    expect(
+      await screen.findByText("Customer refused parcel"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 Damaged")).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 });

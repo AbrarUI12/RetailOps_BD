@@ -60,6 +60,7 @@ class ReturnsService:
                 status_code=422,
             )
         order: Order | None = None
+        target_branch_id = self.user.branch_id
         if command.order_id:
             order = await self.session.scalar(
                 select(Order)
@@ -79,6 +80,7 @@ class ReturnsService:
                     status_code=409,
                 )
             sold = Counter({item.variant_id: item.quantity for item in order.items})
+            target_branch_id = order.branch_id
         else:
             sale = await self.session.scalar(
                 select(Sale).where(
@@ -89,6 +91,7 @@ class ReturnsService:
             if sale is None:
                 raise AppError("SALE_NOT_FOUND", "Sale was not found", status_code=404)
             sold = Counter({item.variant_id: item.quantity for item in sale.items})
+            target_branch_id = sale.branch_id
 
         remaining = sold - await self._already_returned(command.order_id, command.sale_id)
         requested: Counter[uuid.UUID] = Counter()
@@ -109,7 +112,7 @@ class ReturnsService:
 
         returned = Return(
             organization_id=self.user.organization_id,
-            branch_id=self.user.branch_id,
+            branch_id=target_branch_id,
             order_id=command.order_id,
             sale_id=command.sale_id,
             status="RECEIVED",
@@ -134,6 +137,7 @@ class ReturnsService:
                 note=f"{command.reason} ({line.quantity} {line.disposition.lower()})",
                 reference_type="return",
                 reference_id=returned.id,
+                branch_id=target_branch_id,
             )
         if order is not None:
             fully_returned = requested == remaining
