@@ -26,6 +26,12 @@
 .login-icon { display: grid; width: 48px; height: 48px; place-items: center; color: var(--brand-strong); background: var(--brand-soft); border-radius: var(--radius-md); }
 .demo-credential { padding: var(--space-3); color: var(--text-muted); background: var(--surface-subtle); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); font-size: var(--text-caption); text-align: center; }
 
+.form-notice { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-4); color: var(--warning-strong); background: var(--warning-soft); border: 1px solid var(--warning-border); border-radius: var(--radius-sm); font-size: var(--text-compact); }
+.form-notice.success { color: var(--success-strong); background: var(--success-soft); border-color: var(--success-border); }
+.form-notice svg { flex: none; margin-top: 2px; }
+.text-link { justify-self: start; color: var(--brand-strong); font-size: var(--text-compact); font-weight: var(--weight-semibold); text-decoration: underline; text-underline-offset: 3px; }
+.text-link:hover { color: var(--brand-hover); }
+
 @media (max-width: 900px) {
   .login-page { grid-template-columns: 1fr; }
   .login-story { display: none; }

@@ -53,6 +53,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 # Per-process sliding window keyed by client IP. Uvicorn must run with --proxy-headers
 # behind a load balancer, otherwise every request shares the proxy's address.
 login_attempts: dict[str, deque[float]] = defaultdict(deque)
+RATE_LIMITED_PATHS = {
+    "/api/v1/auth/login",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
+}
 
 
 class LoginRateLimitMiddleware(BaseHTTPMiddleware):
@@ -65,7 +70,7 @@ class LoginRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        if request.method == "POST" and request.url.path == "/api/v1/auth/login":
+        if request.method == "POST" and request.url.path in RATE_LIMITED_PATHS:
             key = request.client.host if request.client else "unknown"
             now = time.monotonic()
             attempts = self.attempts[key]

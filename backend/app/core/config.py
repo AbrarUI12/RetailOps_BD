@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     allowed_hosts: list[str] = ["localhost", "127.0.0.1", "test", "testserver"]
     # Bare hostname of the deployed web app (Render's fromService `host`); served over HTTPS.
     frontend_host: str | None = None
+    password_reset_minutes: int = 30
     # Run housekeeping jobs inside the API when there is no separate Celery worker.
     run_scheduler: bool = False
     database_pool_size: int = 5
@@ -78,6 +79,13 @@ class Settings(BaseSettings):
         if value.startswith("postgresql://"):
             return value.replace("postgresql://", "postgresql+psycopg://", 1)
         return value
+
+
+def public_app_url(settings: "Settings") -> str:
+    """Where emailed links (password reset) point."""
+    if settings.frontend_host:
+        return f"https://{settings.frontend_host.strip().removeprefix('https://')}"
+    return settings.cors_origins[0]
 
 
 @lru_cache

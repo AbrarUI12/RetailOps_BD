@@ -23,7 +23,7 @@ The OpenAPI schema and interactive docs are served at `/docs`. Business resource
 
 | Area | Endpoint | Notes |
 | --- | --- | --- |
-| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/logout-all`, `GET /auth/me` | Login is rate-limited to 10 attempts per minute per client IP. Refresh tokens rotate, and reusing one revokes the whole session family. Logout invalidates access tokens already issued |
+| Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/logout-all`, `GET /auth/me`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `POST /auth/change-password` | Login is rate-limited to 10 attempts per minute per client IP. Refresh tokens rotate, and reusing one revokes the whole session family. Logout invalidates access tokens already issued. Reset tokens are one-time, expire after 30 minutes, and end every session. Passwords need at least 10 characters mixing letters and numbers |
 | Workspace | `GET /workspace/counts`, `GET /search?q=` | Badge counts and command-palette search, limited to what the role may open |
 | Products | `GET/POST /products`, `GET/PATCH /products/{id}`, `GET /products/barcode/{barcode}` | variants are nested |
 | Inventory | `GET /inventory`, `POST /inventory/adjustments`, `GET /inventory/movements`, `GET /inventory/low-stock` | adjustments write ledger movements |

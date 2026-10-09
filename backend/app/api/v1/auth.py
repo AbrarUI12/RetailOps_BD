@@ -5,7 +5,14 @@ from fastapi import APIRouter, Cookie, Request, Response, status
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import get_settings
 from app.core.exceptions import AppError
-from app.schemas.auth import AuthResponse, LoginRequest, UserView
+from app.schemas.auth import (
+    AuthResponse,
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    ResetPasswordRequest,
+    UserView,
+)
 from app.services.auth_service import AuthService, user_view
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -75,3 +82,24 @@ async def logout_all(response: Response, session: SessionDep, user: CurrentUser)
 @router.get("/me", response_model=UserView)
 async def me(user: CurrentUser, session: SessionDep) -> UserView:
     return await user_view(session, user)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(command: ForgotPasswordRequest, session: SessionDep) -> dict[str, str]:
+    await AuthService(session).forgot_password(command.email)
+    return {"message": "If that email has an account, a reset link is on its way."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(command: ResetPasswordRequest, session: SessionDep) -> None:
+    await AuthService(session).reset_password(command.token, command.new_password)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    command: ChangePasswordRequest, request: Request, session: SessionDep, user: CurrentUser
+) -> None:
+    """Changing the password signs out every other device but keeps this one."""
+    await AuthService(session).change_password(
+        user, command.current_password, command.new_password, request.state.session_id
+    )

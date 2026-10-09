@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, LogOut, ShieldOff } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, ShieldOff } from "lucide-react";
 import { useState } from "react";
 
 import { api } from "../../lib/api";
@@ -7,12 +7,14 @@ import { initials, label } from "../../lib/format";
 import { toast } from "../../lib/toast";
 import { useAuthStore } from "../../stores/authStore";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 
 export function ProfileMenu() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const [confirmEverywhere, setConfirmEverywhere] = useState(false);
   const [pending, setPending] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   if (!user) return null;
 
   async function signOutEverywhere() {
@@ -48,6 +50,10 @@ export function ProfileMenu() {
               Signed in as <strong>{user.email}</strong>
             </DropdownMenu.Label>
             <DropdownMenu.Separator className="menu-separator" />
+            <DropdownMenu.Item className="menu-item" onSelect={() => setChangingPassword(true)}>
+              <KeyRound aria-hidden="true" size={16} /> Change password
+            </DropdownMenu.Item>
+            <DropdownMenu.Separator className="menu-separator" />
             <DropdownMenu.Item className="menu-item" onSelect={() => void logout()}>
               <LogOut aria-hidden="true" size={16} /> Sign out
             </DropdownMenu.Item>
@@ -57,6 +63,7 @@ export function ProfileMenu() {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+      <ChangePasswordDialog onOpenChange={setChangingPassword} open={changingPassword} />
       <ConfirmDialog
         confirmLabel="Sign out everywhere"
         description="Every phone, tablet and computer signed in as you will need to sign in again. Unsynced sales stay on their devices."

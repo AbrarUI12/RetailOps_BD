@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Annotated
 
 import jwt
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,7 @@ SessionDep = Annotated[AsyncSession, Depends(session_dependency)]
 
 
 async def get_current_user(
-    session: SessionDep, token: Annotated[str, Depends(oauth2_scheme)]
+    request: Request, session: SessionDep, token: Annotated[str, Depends(oauth2_scheme)]
 ) -> User:
     try:
         payload = decode_access_token(token)
@@ -52,6 +52,7 @@ async def get_current_user(
     )
     if user is None or not await session_is_live(session, session_id):
         raise AppError("INVALID_ACCESS_TOKEN", "Authentication is required", status_code=401)
+    request.state.session_id = session_id
     return user
 
 

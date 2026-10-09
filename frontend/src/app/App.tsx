@@ -8,6 +8,7 @@ import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { RequirePermission } from "../components/auth/RequirePermission";
 import { Toaster } from "../components/ui/Toast";
 import { LoginPage } from "../routes/LoginPage";
+import { ForgotPasswordPage, ResetPasswordPage } from "../routes/PasswordRecoveryPages";
 // Offline-critical screens ship in the entry bundle so they work before ever being visited online.
 import { PosPage } from "../routes/PosPage";
 import { SyncPage } from "../routes/SyncPage";
@@ -37,6 +38,8 @@ export function App() {
         <BrowserRouter>
           <Routes>
             <Route path="login" element={<LoginPage />} />
+            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
                 <Route index element={<Navigate replace to="/dashboard" />} />

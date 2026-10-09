@@ -1,25 +1,31 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import structlog
 from sqlalchemy import exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import get_settings, public_app_url
 from app.core.exceptions import AppError
 from app.core.permissions import ROLE_PERMISSIONS
+from app.core.request_context import current_request
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
+    generate_reset_token,
+    hash_password,
     hash_refresh_token,
+    password_problems,
     verify_password,
 )
-from app.models.entities import Branch, Organization, RefreshSession, User
+from app.models.entities import Branch, Organization, PasswordResetToken, RefreshSession, User
 from app.schemas.auth import AuthResponse, UserView
 from app.services.audit_service import add_audit
 
 # Two tabs may refresh at the same moment; a token rotated this recently is treated as a race,
 # not as theft.
 REUSE_GRACE = timedelta(seconds=30)
+logger = structlog.get_logger(__name__)
 
 
 class AuthService:
@@ -100,6 +106,96 @@ class AuthService:
         add_audit(self.session, user, "auth.logout_all", "user", user.id)
         await self.session.commit()
 
+    async def forgot_password(self, email: str) -> None:
+        """Issue a one-time reset link. Always succeeds silently so emails can't be enumerated."""
+        user = await self._find_user(email)
+        if user is None or not user.is_active:
+            return
+        now = datetime.now(UTC)
+        await self.session.execute(
+            update(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+            .values(used_at=now)
+        )
+        token, token_hash = generate_reset_token()
+        self.session.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=now + timedelta(minutes=self.settings.password_reset_minutes),
+            )
+        )
+        add_audit(self.session, user, "auth.password_reset_requested", "user", user.id)
+        await self.session.commit()
+        deliver_password_reset(
+            user, f"{public_app_url(self.settings)}/reset-password?token={token}"
+        )
+
+    async def reset_password(self, token: str, new_password: str) -> None:
+        now = datetime.now(UTC)
+        reset = await self.session.scalar(
+            select(PasswordResetToken)
+            .where(PasswordResetToken.token_hash == hash_refresh_token(token))
+            .with_for_update()
+        )
+        if reset is None or reset.used_at is not None or _aware(reset.expires_at) <= now:
+            raise AppError(
+                "INVALID_RESET_TOKEN",
+                "This reset link has expired or was already used. Request a new one.",
+                status_code=400,
+            )
+        user = await self.session.get(User, reset.user_id)
+        if user is None or not user.is_active:
+            raise AppError(
+                "INVALID_RESET_TOKEN", "This reset link is no longer valid", status_code=400
+            )
+        self._set_password(user, new_password)
+        reset.used_at = now
+        # A reset means the old password may be compromised: end every session.
+        await self.session.execute(
+            update(RefreshSession)
+            .where(RefreshSession.user_id == user.id, RefreshSession.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+        add_audit(self.session, user, "auth.password_reset", "user", user.id)
+        await self.session.commit()
+
+    async def change_password(
+        self, user: User, current_password: str, new_password: str, keep_session: uuid.UUID
+    ) -> None:
+        if not verify_password(current_password, user.password_hash):
+            raise AppError(
+                "INVALID_CREDENTIALS",
+                "Current password is incorrect",
+                status_code=400,
+                details={"field": "current_password"},
+            )
+        self._set_password(user, new_password)
+        keep_family = select(RefreshSession.family_id).where(RefreshSession.id == keep_session)
+        await self.session.execute(
+            update(RefreshSession)
+            .where(
+                RefreshSession.user_id == user.id,
+                RefreshSession.revoked_at.is_(None),
+                RefreshSession.family_id != keep_family.scalar_subquery(),
+            )
+            .values(revoked_at=datetime.now(UTC))
+        )
+        add_audit(self.session, user, "auth.password_changed", "user", user.id)
+        await self.session.commit()
+
+    @staticmethod
+    def _set_password(user: User, password: str) -> None:
+        problems = password_problems(password, email=user.email)
+        if problems:
+            raise AppError(
+                "WEAK_PASSWORD",
+                problems[0],
+                status_code=422,
+                details={"field": "new_password", "problems": problems},
+            )
+        user.password_hash = hash_password(password)
+
     async def _revoke_family(self, family_id: uuid.UUID, now: datetime) -> None:
         await self.session.execute(
             update(RefreshSession)
@@ -120,6 +216,7 @@ class AuthService:
             token_hash=token_hash,
             expires_at=datetime.now(UTC) + timedelta(days=self.settings.refresh_token_days),
             user_agent=(user_agent or "")[:300] or None,
+            ip_address=current_request().client_ip,
         )
         self.session.add(refresh_session)
         await self.session.flush()
@@ -127,6 +224,8 @@ class AuthService:
             user_id=user.id,
             organization_id=user.organization_id,
             session_id=refresh_session.id,
+            role=user.role.name.value,
+            permissions=sorted(ROLE_PERMISSIONS[user.role.name]),
         )
         await self.session.commit()
         return (
@@ -137,6 +236,15 @@ class AuthService:
             ),
             raw_token,
         )
+
+
+def deliver_password_reset(user: User, link: str) -> None:
+    """Email delivery arrives in V2 (plan §78). Until then the link is written to the server log
+    outside production, so local and demo environments can complete the flow."""
+    if get_settings().environment == "production":
+        logger.warning("password_reset.no_email_channel", user_id=str(user.id))
+        return
+    logger.info("password_reset.link", user_id=str(user.id), link=link)
 
 
 async def session_is_live(session: AsyncSession, session_id: uuid.UUID) -> bool:

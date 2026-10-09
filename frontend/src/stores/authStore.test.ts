@@ -20,7 +20,7 @@ function respond(status: number, body: unknown) {
 describe("auth store", () => {
   beforeEach(() => {
     localStorage.clear();
-    useAuthStore.setState({ accessToken: null, user: null, bootstrapped: false, offlineSession: false });
+    useAuthStore.setState({ accessToken: null, user: null, bootstrapped: false, offlineSession: false, sessionExpired: false });
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -42,6 +42,18 @@ describe("auth store", () => {
 
     expect(useAuthStore.getState().user).toBeNull();
     expect(localStorage.getItem("retailops.session")).toBeNull();
+  });
+
+  it("flags an expired session only when the user was signed in", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => respond(401, { error: { code: "INVALID_REFRESH", message: "Expired" } })));
+    useAuthStore.setState({ accessToken: "old", user });
+
+    await useAuthStore.getState().refresh();
+    expect(useAuthStore.getState().sessionExpired).toBe(true);
+
+    useAuthStore.setState({ accessToken: null, user: null, sessionExpired: false });
+    await useAuthStore.getState().refresh();
+    expect(useAuthStore.getState().sessionExpired).toBe(false);
   });
 
   it("shares one refresh request between concurrent callers", async () => {

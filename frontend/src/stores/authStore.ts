@@ -33,6 +33,8 @@ interface AuthState {
   bootstrapped: boolean;
   /** True when the user comes from the offline cache and no token has been issued yet. */
   offlineSession: boolean;
+  /** Set when the server ended a session the user was using, so sign-in can explain why. */
+  sessionExpired: boolean;
   login: (email: string, password: string) => Promise<void>;
   refresh: () => Promise<boolean>;
   bootstrap: () => Promise<void>;
@@ -47,13 +49,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   bootstrapped: false,
   offlineSession: false,
+  sessionExpired: false,
   login: async (email, password) => {
     const result = await api<AuthResponse>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
     writeCachedUser(result.user);
-    set({ accessToken: result.access_token, user: result.user, bootstrapped: true, offlineSession: false });
+    set({ accessToken: result.access_token, user: result.user, bootstrapped: true, offlineSession: false, sessionExpired: false });
   },
   refresh: () => {
     refreshInFlight ??= (async () => {
@@ -65,8 +68,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch (reason) {
         if (reason instanceof ApiError && reason.status === 401) {
           // The server says the session is over: forget the cached user too.
+          const wasSignedIn = Boolean(get().accessToken);
           writeCachedUser(null);
-          set({ accessToken: null, user: null, offlineSession: false });
+          set({ accessToken: null, user: null, offlineSession: false, sessionExpired: wasSignedIn });
           return false;
         }
         // Network or server outage: keep working from the cached session.
@@ -86,6 +90,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await api<void>("/api/v1/auth/logout", { method: "POST" }, false).catch(() => undefined);
     writeCachedUser(null);
-    set({ accessToken: null, user: null, bootstrapped: true, offlineSession: false });
+    set({ accessToken: null, user: null, bootstrapped: true, offlineSession: false, sessionExpired: false });
   },
 }));
