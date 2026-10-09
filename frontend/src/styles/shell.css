@@ -92,6 +92,8 @@
 
 /* Global connectivity banner (plan §15) */
 .offline-banner { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--warning-strong); background: var(--warning-soft); border-bottom: 1px solid var(--warning-border); font-size: var(--text-compact); font-weight: var(--weight-medium); text-align: center; }
+.update-banner { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--info-strong); background: var(--info-soft); border-bottom: 1px solid var(--info-border); font-size: var(--text-compact); font-weight: var(--weight-medium); text-align: center; }
+.update-banner button { color: inherit; font: inherit; text-decoration: underline; cursor: pointer; background: transparent; border: 0; }
 
 @media (max-width: 1080px) {
   :root { --sidebar-width: var(--sidebar-collapsed-width); }

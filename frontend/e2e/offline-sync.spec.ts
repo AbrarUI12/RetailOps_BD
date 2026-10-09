@@ -38,7 +38,7 @@ test("offline sale moves through the durable queue when connectivity returns", a
   page,
 }) => {
   let syncRequests = 0;
-  await page.route("http://localhost:8000/**", async (route) => {
+  await page.route(/\/(api|health)\//, async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     if (path === "/api/v1/auth/refresh") {
@@ -104,6 +104,18 @@ test("offline sale moves through the durable queue when connectivity returns", a
   await expect(
     page.getByRole("link", { name: /Sync status: Synced/ }),
   ).toBeVisible();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  const manifest = await page.evaluate(
+    async () =>
+      (await (await fetch("/manifest.webmanifest")).json()) as {
+        display: string;
+        icons: { sizes: string }[];
+      },
+  );
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.icons.map((icon) => icon.sizes)).toEqual(
+    expect.arrayContaining(["192x192", "512x512"]),
+  );
 
   await context.setOffline(true);
   await expect(page.getByText(/You're offline/)).toBeVisible();
@@ -116,6 +128,16 @@ test("offline sale moves through the durable queue when connectivity returns", a
   await expect(
     page.getByRole("heading", { name: "Sale saved offline" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /1 waiting to sync/ }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText(/You're offline/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Add Leather Wallet/ }),
+  ).toBeVisible();
+  await expect(page.getByText("8 available")).toBeVisible();
   await expect(
     page.getByRole("link", { name: /1 waiting to sync/ }),
   ).toBeVisible();

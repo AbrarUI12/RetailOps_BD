@@ -1,12 +1,11 @@
-const CACHE = "retailops-shell-v2";
-const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icons/app-icon.svg"];
+const CACHE = "__CACHE_VERSION__";
+const PRECACHE = __PRECACHE_MANIFEST__;
 // Live data and connectivity probes must always hit the network: a cached /health response would
 // tell the sync engine the server is reachable when it is not.
 const NETWORK_ONLY = ["/api/", "/health/"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
-  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
 });
 
 self.addEventListener("activate", (event) => {
@@ -14,19 +13,20 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
   if (NETWORK_ONLY.some((prefix) => url.pathname.startsWith(prefix))) return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          void caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/index.html"))),
-  );
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).catch(() => caches.match("/index.html")));
+    return;
+  }
+  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+    if (response.ok) void caches.open(CACHE).then((cache) => cache.put(event.request, response.clone()));
+    return response;
+  })));
 });

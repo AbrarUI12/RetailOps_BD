@@ -9,6 +9,7 @@ import { initials } from "../../lib/format";
 import { useOnline } from "../../lib/hooks";
 import { t } from "../../lib/i18n";
 import { can } from "../../lib/permissions";
+import { usePwaUpdate } from "../../lib/pwa";
 import { useSyncEngine } from "../../lib/syncEngine";
 import { cn } from "../../lib/utils";
 import { useAuthStore } from "../../stores/authStore";
@@ -18,28 +19,61 @@ import { Button } from "../ui/Button";
 import { SHORTCUT_LABEL } from "../../lib/shortcuts";
 import { CommandPalette } from "./CommandPalette";
 import { MobileMoreSheet } from "./MobileMoreSheet";
-import { mobileNavigation, primaryNavigation, systemNavigation, type NavItem } from "./navigation";
+import {
+  mobileNavigation,
+  primaryNavigation,
+  systemNavigation,
+  type NavItem,
+} from "./navigation";
 import { NotificationBell } from "./NotificationBell";
 import { PageLoading } from "./PageLoading";
 import { ProfileMenu } from "./ProfileMenu";
 import { SyncIndicator } from "./SyncIndicator";
 
-function NavigationLink({ count, item, mobile = false }: { item: NavItem; mobile?: boolean; count?: number | null }) {
+function NavigationLink({
+  count,
+  item,
+  mobile = false,
+}: {
+  item: NavItem;
+  mobile?: boolean;
+  count?: number | null;
+}) {
   const Icon = item.icon;
   const isPos = item.to === "/pos";
   return (
     <NavLink
       aria-label={count ? `${item.label}, ${count}` : item.label}
-      className={({ isActive }) => cn(mobile ? "mobile-nav-link" : "nav-link", mobile && isPos && "primary", isActive && "active")}
+      className={({ isActive }) =>
+        cn(
+          mobile ? "mobile-nav-link" : "nav-link",
+          mobile && isPos && "primary",
+          isActive && "active",
+        )
+      }
       title={item.label}
       to={item.to}
     >
       {({ isActive }) => (
         <>
-          {isActive ? <motion.span className={mobile ? "mobile-active" : "nav-active"} layoutId={mobile ? "mobile-nav-active" : "desktop-nav-active"} /> : null}
+          {isActive ? (
+            <motion.span
+              className={mobile ? "mobile-active" : "nav-active"}
+              layoutId={mobile ? "mobile-nav-active" : "desktop-nav-active"}
+            />
+          ) : null}
           <Icon aria-hidden="true" size={mobile && isPos ? 24 : 19} />
-          <span className="nav-label">{mobile ? item.shortLabel ?? item.label : item.label}</span>
-          {count ? <span aria-hidden="true" className={cn("nav-badge", item.alert && "alert")}>{count > 99 ? "99+" : count}</span> : null}
+          <span className="nav-label">
+            {mobile ? (item.shortLabel ?? item.label) : item.label}
+          </span>
+          {count ? (
+            <span
+              aria-hidden="true"
+              className={cn("nav-badge", item.alert && "alert")}
+            >
+              {count > 99 ? "99+" : count}
+            </span>
+          ) : null}
         </>
       )}
     </NavLink>
@@ -67,6 +101,7 @@ function AnimatedOutlet() {
 
 export function AppShell() {
   useSyncEngine();
+  const pwaUpdate = usePwaUpdate();
   const collapsed = useUIStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const setCommandOpen = useUIStore((state) => state.setCommandOpen);
@@ -81,25 +116,47 @@ export function AppShell() {
     refetchInterval: 60_000,
     enabled: online,
   });
-  const badge = (item: NavItem) => (item.to === "/sync" ? (counts.data?.open_conflicts ?? 0) + pending : item.badge ? counts.data?.[item.badge] : null);
-  const visiblePrimary = primaryNavigation.filter((item) => can(user, item.permission));
-  const visibleSystem = systemNavigation.filter((item) => can(user, item.permission));
+  const badge = (item: NavItem) =>
+    item.to === "/sync"
+      ? (counts.data?.open_conflicts ?? 0) + pending
+      : item.badge
+        ? counts.data?.[item.badge]
+        : null;
+  const visiblePrimary = primaryNavigation.filter((item) =>
+    can(user, item.permission),
+  );
+  const visibleSystem = systemNavigation.filter((item) =>
+    can(user, item.permission),
+  );
   const visible = [...visiblePrimary, ...visibleSystem];
   const mobileItems = mobileNavigation(visible);
 
   return (
     <div className={cn("app-shell", collapsed && "sidebar-collapsed")}>
-      <a className="skip-link" href="#main-content">Skip to content</a>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <aside className="sidebar">
-        <NavLink aria-label="RetailOps BD home" className="brand" to="/dashboard">
-          <span aria-hidden="true" className="brand-mark"><span>R</span></span>
-          <span className="brand-copy">RetailOps <strong>BD</strong><small>Commerce operations</small></span>
+        <NavLink
+          aria-label="RetailOps BD home"
+          className="brand"
+          to="/dashboard"
+        >
+          <span aria-hidden="true" className="brand-mark">
+            <span>R</span>
+          </span>
+          <span className="brand-copy">
+            RetailOps <strong>BD</strong>
+            <small>Commerce operations</small>
+          </span>
         </NavLink>
 
         <div className="nav-section">
           <span className="nav-section-label">Workspace</span>
           <nav aria-label="Primary navigation">
-            {visiblePrimary.map((item) => <NavigationLink count={badge(item)} item={item} key={item.to} />)}
+            {visiblePrimary.map((item) => (
+              <NavigationLink count={badge(item)} item={item} key={item.to} />
+            ))}
           </nav>
         </div>
 
@@ -107,28 +164,69 @@ export function AppShell() {
           <div className="nav-section secondary-section">
             <span className="nav-section-label">System</span>
             <nav aria-label="System navigation">
-              {visibleSystem.map((item) => <NavigationLink count={badge(item)} item={item} key={item.to} />)}
+              {visibleSystem.map((item) => (
+                <NavigationLink count={badge(item)} item={item} key={item.to} />
+              ))}
             </nav>
           </div>
         ) : null}
 
-        <button aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="collapse-button" onClick={toggleSidebar} type="button">
-          {collapsed ? <ChevronRight aria-hidden="true" size={16} /> : <ChevronLeft aria-hidden="true" size={16} />}
+        <button
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="collapse-button"
+          onClick={toggleSidebar}
+          type="button"
+        >
+          {collapsed ? (
+            <ChevronRight aria-hidden="true" size={16} />
+          ) : (
+            <ChevronLeft aria-hidden="true" size={16} />
+          )}
         </button>
 
         {user ? (
-          <div className="store-card" title={`${user.organization_name} · ${user.branch_name}`}>
-            <span aria-hidden="true" className="store-avatar">{initials(user.organization_name)}</span>
-            <span className="store-copy"><strong>{user.organization_name}</strong><small>{user.branch_name}</small></span>
+          <div
+            className="store-card"
+            title={`${user.organization_name} · ${user.branch_name}`}
+          >
+            <span aria-hidden="true" className="store-avatar">
+              {initials(user.organization_name)}
+            </span>
+            <span className="store-copy">
+              <strong>{user.organization_name}</strong>
+              <small>{user.branch_name}</small>
+            </span>
           </div>
         ) : null}
       </aside>
 
       <div className="workspace">
-        {!online ? <div className="offline-banner" role="status"><WifiOff aria-hidden="true" size={16} /> {t("offline.banner")}</div> : null}
+        {pwaUpdate.ready ? (
+          <div className="update-banner" role="status">
+            A new RetailOps version is ready.{" "}
+            <button onClick={pwaUpdate.apply} type="button">
+              Update now
+            </button>
+          </div>
+        ) : null}
+        {!online ? (
+          <div className="offline-banner" role="status">
+            <WifiOff aria-hidden="true" size={16} /> {t("offline.banner")}
+          </div>
+        ) : null}
         <header className="topbar">
-          <div className="mobile-brand"><span aria-hidden="true" className="brand-mark"><span>R</span></span><strong>RetailOps</strong></div>
-          <button aria-label="Search and quick actions" className="search-button" onClick={() => setCommandOpen(true)} type="button">
+          <div className="mobile-brand">
+            <span aria-hidden="true" className="brand-mark">
+              <span>R</span>
+            </span>
+            <strong>RetailOps</strong>
+          </div>
+          <button
+            aria-label="Search and quick actions"
+            className="search-button"
+            onClick={() => setCommandOpen(true)}
+            type="button"
+          >
             <Search aria-hidden="true" size={18} />
             <span>Search products, orders, customers…</span>
             <kbd>{SHORTCUT_LABEL}</kbd>
@@ -137,21 +235,55 @@ export function AppShell() {
           <SyncIndicator />
           <NotificationBell unread={counts.data?.unread_notifications ?? 0} />
           <ProfileMenu />
-          <Button aria-expanded={moreOpen} aria-label="Open menu" className="mobile-menu" onClick={() => setMoreOpen(true)} size="icon" variant="ghost"><Menu aria-hidden="true" size={22} /></Button>
+          <Button
+            aria-expanded={moreOpen}
+            aria-label="Open menu"
+            className="mobile-menu"
+            onClick={() => setMoreOpen(true)}
+            size="icon"
+            variant="ghost"
+          >
+            <Menu aria-hidden="true" size={22} />
+          </Button>
         </header>
         <main className="content" id="main-content" tabIndex={-1}>
-          <Suspense fallback={<PageLoading />}><AnimatedOutlet /></Suspense>
+          <Suspense fallback={<PageLoading />}>
+            <AnimatedOutlet />
+          </Suspense>
         </main>
       </div>
 
-      <nav aria-label="Mobile navigation" className="mobile-nav" style={{ gridTemplateColumns: `repeat(${mobileItems.length + 1}, 1fr)` }}>
-        {mobileItems.map((item) => <NavigationLink count={badge(item)} item={item} key={item.to} mobile />)}
-        <button aria-label="More" className="mobile-nav-link" onClick={() => setMoreOpen(true)} type="button">
+      <nav
+        aria-label="Mobile navigation"
+        className="mobile-nav"
+        style={{
+          gridTemplateColumns: `repeat(${mobileItems.length + 1}, 1fr)`,
+        }}
+      >
+        {mobileItems.map((item) => (
+          <NavigationLink
+            count={badge(item)}
+            item={item}
+            key={item.to}
+            mobile
+          />
+        ))}
+        <button
+          aria-label="More"
+          className="mobile-nav-link"
+          onClick={() => setMoreOpen(true)}
+          type="button"
+        >
           <Menu aria-hidden="true" size={19} />
           <span className="nav-label">More</span>
         </button>
       </nav>
-      <MobileMoreSheet counts={counts.data} items={visible} onOpenChange={setMoreOpen} open={moreOpen} />
+      <MobileMoreSheet
+        counts={counts.data}
+        items={visible}
+        onOpenChange={setMoreOpen}
+        open={moreOpen}
+      />
       <CommandPalette />
     </div>
   );
