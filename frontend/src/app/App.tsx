@@ -13,9 +13,6 @@ import {
   ForgotPasswordPage,
   ResetPasswordPage,
 } from "../routes/PasswordRecoveryPages";
-// Offline-critical screens ship in the entry bundle so they work before ever being visited online.
-import { PosPage } from "../routes/PosPage";
-import { SyncPage } from "../routes/SyncPage";
 import { can } from "../lib/permissions";
 import { useAuthStore } from "../stores/authStore";
 
@@ -48,6 +45,14 @@ const ActivityPage = lazy(() =>
 );
 const SalesPage = lazy(() =>
   import("../routes/SalesPage").then((m) => ({ default: m.SalesPage })),
+);
+// The production service worker precaches emitted route chunks, so these remain offline-safe
+// without making every sign-in download the POS database and sync engine up front.
+const PosPage = lazy(() =>
+  import("../routes/PosPage").then((m) => ({ default: m.PosPage })),
+);
+const SyncPage = lazy(() =>
+  import("../routes/SyncPage").then((m) => ({ default: m.SyncPage })),
 );
 
 const queryClient = new QueryClient({

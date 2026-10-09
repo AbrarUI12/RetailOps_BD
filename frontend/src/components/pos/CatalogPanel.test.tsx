@@ -18,13 +18,13 @@ const items: CatalogItem[] = [
 ];
 const status: CatalogStatus = { version: "v1", organizationId: "o1", syncedAt: new Date().toISOString(), stockAt: new Date().toISOString(), count: 2 };
 
-function renderPanel(onAdd = vi.fn(), offline = false) {
+function renderPanel(onAdd = vi.fn(), offline = false, catalogStatus = status) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return {
     onAdd,
     ...render(
       <QueryClientProvider client={client}>
-        <CatalogPanel offline={offline} onAdd={onAdd} onRefresh={() => undefined} refreshError={null} refreshing={false} status={status} />
+        <CatalogPanel offline={offline} onAdd={onAdd} onRefresh={() => undefined} refreshError={null} refreshing={false} status={catalogStatus} />
       </QueryClientProvider>,
     ),
   };
@@ -96,5 +96,27 @@ describe("POS catalog panel", () => {
     await user.keyboard("{F2}");
 
     expect(screen.getByLabelText("Search or scan a barcode")).toHaveFocus();
+  });
+
+  it("bounds rendered tiles for a large local catalog", async () => {
+    const bulk = Array.from({ length: 250 }, (_, index): CatalogItem => ({
+      ...base,
+      variant_id: `bulk-v${index}`,
+      product_id: `bulk-p${index}`,
+      product_name: `Bulk product ${String(index).padStart(3, "0")}`,
+      sku: `BULK-${index}`,
+      barcode: `200${String(index).padStart(3, "0")}`,
+      category_id: null,
+      search_text: `bulk product ${index} bulk-${index}`,
+    }));
+    await offlineDb.catalog.clear();
+    await offlineDb.catalog.bulkPut(bulk);
+
+    renderPanel(vi.fn(), false, { ...status, count: bulk.length });
+
+    await vi.waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /Add Bulk product/ })).toHaveLength(120),
+    );
+    expect(screen.getByText("250 items on this device", { exact: false })).toBeInTheDocument();
   });
 });

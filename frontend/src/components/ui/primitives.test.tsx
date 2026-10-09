@@ -69,9 +69,12 @@ describe("ResponsiveTable", () => {
 
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Products" })).toBeInTheDocument();
-    const [tableRow] = screen.getAllByRole("button", { name: "Open Panjabi" });
+    const [tableRow, mobileRow] = screen.getAllByRole("button", { name: "Open Panjabi" });
     tableRow.focus();
     await userEvent.keyboard("{Enter}");
+    mobileRow.focus();
+    await userEvent.keyboard(" ");
+    expect(onRowClick).toHaveBeenCalledTimes(2);
     expect(onRowClick).toHaveBeenCalledWith({ id: "1", name: "Panjabi", total: "৳2,490" });
     await expectNoAxeViolations(container);
   });

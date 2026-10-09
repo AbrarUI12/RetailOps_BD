@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 
@@ -72,25 +72,9 @@ export function ResponsiveTable<T>({ caption, columns, onRowClick, rowKey, rowLa
       <ul aria-label={caption} className="row-cards">
         {rows.map((row) => (
           <li key={rowKey(row)}>
-            <div
-              aria-label={onRowClick ? rowLabel?.(row) : undefined}
-              className={cn("row-card", onRowClick && "clickable")}
-              onClick={onRowClick ? () => open(row) : undefined}
-              onKeyDown={
-                onRowClick
-                  ? (event: KeyboardEvent) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        open(row);
-                      }
-                    }
-                  : undefined
-              }
-              role={onRowClick ? "button" : undefined}
-              tabIndex={onRowClick ? 0 : undefined}
-            >
+            <div className="row-card">
               <div className="row-card-head">
-                <div>{primary.cell(row)}</div>
+                <div>{primaryCell(row)}</div>
                 {trailing.length ? <div className="row-card-trailing">{trailing.map((column) => <div key={column.key}>{column.cell(row)}</div>)}</div> : null}
               </div>
               {fields.length ? (

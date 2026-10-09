@@ -156,7 +156,7 @@ export function CatalogPanel({ offline, onAdd, onRefresh, refreshError, refreshi
                 transition={{ duration: 0.25 }}
                 type="button"
               >
-                <span aria-hidden="true" className="product-art">{item.image_url ? <img alt="" loading="lazy" src={item.image_url} /> : initials(item.product_name)}</span>
+                <span aria-hidden="true" className="product-art">{item.image_url ? <img alt="" decoding="async" height="96" loading="lazy" referrerPolicy="no-referrer" src={item.image_url} width="160" /> : initials(item.product_name)}</span>
                 <span>
                   <strong>{item.product_name}</strong>
                   <small>{item.variant_name} · {item.sku}</small>

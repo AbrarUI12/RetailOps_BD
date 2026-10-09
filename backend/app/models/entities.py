@@ -261,6 +261,7 @@ class Customer(Base, TimestampMixin):
     __tablename__ = "customers"
     __table_args__ = (
         UniqueConstraint("organization_id", "normalized_phone", name="uq_customers_org_phone"),
+        Index("ix_customers_org_created_at", "organization_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -290,6 +291,7 @@ class Sale(Base, TimestampMixin):
         UniqueConstraint("organization_id", "invoice_number"),
         UniqueConstraint("organization_id", "client_transaction_id"),
         Index("ix_sales_branch_created_at", "branch_id", "created_at"),
+        Index("ix_sales_org_created_at", "organization_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -345,6 +347,7 @@ class Order(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "order_number"),
         Index("ix_orders_branch_created_at", "branch_id", "created_at"),
+        Index("ix_orders_org_created_at", "organization_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -430,6 +433,7 @@ class ShipmentEvent(Base):
 
 class Return(Base, TimestampMixin):
     __tablename__ = "returns"
+    __table_args__ = (Index("ix_returns_org_created_at", "organization_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
@@ -463,7 +467,10 @@ class Supplier(Base, TimestampMixin):
 
 class Purchase(Base, TimestampMixin):
     __tablename__ = "purchases"
-    __table_args__ = (UniqueConstraint("organization_id", "reference"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "reference"),
+        Index("ix_purchases_org_created_at", "organization_id", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
@@ -514,6 +521,7 @@ class SyncTransaction(Base, TimestampMixin):
 
 class SyncConflict(Base, TimestampMixin):
     __tablename__ = "sync_conflicts"
+    __table_args__ = (Index("ix_sync_conflicts_org_created_at", "organization_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
@@ -530,6 +538,7 @@ class SyncConflict(Base, TimestampMixin):
 
 class Notification(Base, TimestampMixin):
     __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_org_created_at", "organization_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
@@ -557,6 +566,7 @@ class NotificationRead(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (Index("ix_audit_logs_org_created_at", "organization_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)

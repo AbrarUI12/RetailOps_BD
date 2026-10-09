@@ -10,7 +10,10 @@ import { cn } from "../../lib/utils";
  */
 export function ProductThumb({ imageUrl, large = false, name }: { id?: string; name: string; imageUrl: string | null; large?: boolean }) {
   const reduceMotion = useReducedMotion();
-  const content = imageUrl ? <img alt="" loading="lazy" src={imageUrl} /> : initials(name);
+  const size = large ? 96 : 44;
+  const content = imageUrl ? (
+    <img alt="" decoding="async" height={size} loading="lazy" referrerPolicy="no-referrer" src={imageUrl} width={size} />
+  ) : initials(name);
   if (!large) return <span aria-hidden="true" className="thumb">{content}</span>;
   return (
     <motion.span
