@@ -25,8 +25,8 @@ class VariantCreate(BaseModel):
     name: str = Field(min_length=1, max_length=140)
     sku: str = Field(min_length=1, max_length=64)
     barcode: str | None = Field(default=None, max_length=80)
-    price: Decimal = Field(gt=0, decimal_places=2)
-    cost: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
+    price: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    cost: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
     attributes: dict[str, str] = Field(default_factory=dict)
     reorder_level: int = Field(default=5, ge=0)
 
@@ -35,8 +35,8 @@ class VariantUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=140)
     sku: str | None = Field(default=None, min_length=1, max_length=64)
     barcode: str | None = Field(default=None, max_length=80)
-    price: Decimal | None = Field(default=None, gt=0, decimal_places=2)
-    cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    price: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+    cost: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
     attributes: dict[str, str] | None = None
     reorder_level: int | None = Field(default=None, ge=0)
     is_active: bool | None = None

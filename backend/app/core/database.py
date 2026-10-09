@@ -41,7 +41,11 @@ class Base(DeclarativeBase):
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with session_factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def close_database() -> None:

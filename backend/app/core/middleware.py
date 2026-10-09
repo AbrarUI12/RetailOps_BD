@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 from collections import defaultdict, deque
@@ -10,16 +11,23 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
+from app.core.config import get_settings
 from app.core.request_context import RequestContext, set_request_context
 
 access_logger = structlog.get_logger("retailops.access")
+SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        request_id = request.headers.get("x-request-id", "")[:80] or uuid.uuid4().hex
+        supplied_request_id = request.headers.get("x-request-id", "")
+        request_id = (
+            supplied_request_id
+            if SAFE_REQUEST_ID.fullmatch(supplied_request_id)
+            else uuid.uuid4().hex
+        )
         request.state.request_id = request_id
         client_ip = request.client.host if request.client else None
         set_request_context(
@@ -47,12 +55,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if request.url.path.startswith("/api/v1/auth/"):
+            response.headers["Cache-Control"] = "no-store"
+        if get_settings().environment == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
 
 # Per-process sliding window keyed by client IP. Uvicorn must run with --proxy-headers
 # behind a load balancer, otherwise every request shares the proxy's address.
-login_attempts: dict[str, deque[float]] = defaultdict(deque)
+login_attempts: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 RATE_LIMITED_PATHS = {
     "/api/v1/auth/login",
     "/api/v1/auth/forgot-password",
@@ -71,7 +83,8 @@ class LoginRateLimitMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         if request.method == "POST" and request.url.path in RATE_LIMITED_PATHS:
-            key = request.client.host if request.client else "unknown"
+            client = request.client.host if request.client else "unknown"
+            key = (request.url.path, client)
             now = time.monotonic()
             attempts = self.attempts[key]
             while attempts and attempts[0] < now - self.window_seconds:
@@ -82,7 +95,7 @@ class LoginRateLimitMiddleware(BaseHTTPMiddleware):
                     content={
                         "error": {
                             "code": "RATE_LIMITED",
-                            "message": "Too many login attempts. Try again shortly.",
+                            "message": "Too many attempts. Try again shortly.",
                             "details": {},
                         }
                     },

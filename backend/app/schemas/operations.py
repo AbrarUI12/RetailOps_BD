@@ -3,14 +3,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.models.entities import OrderSource, OrderStatus
 from app.services.couriers import CourierStatus
 
 
 class AddressInput(BaseModel):
-    label: str = "Home"
+    label: str = Field(default="Home", min_length=1, max_length=40)
     address: str = Field(min_length=5, max_length=500)
     area: str | None = Field(default=None, max_length=100)
     city: str = Field(default="Dhaka", max_length=80)
@@ -18,7 +18,7 @@ class AddressInput(BaseModel):
 
 class CustomerCreate(BaseModel):
     name: str = Field(min_length=2, max_length=140)
-    phone: str
+    phone: str = Field(min_length=7, max_length=24)
     phone_verified: bool = False
     notes: str | None = Field(default=None, max_length=1000)
     address: AddressInput | None = None
@@ -47,8 +47,8 @@ class OrderCreate(BaseModel):
     source: OrderSource = OrderSource.FACEBOOK
     delivery_address: str = Field(min_length=5, max_length=500)
     area: str | None = Field(default=None, max_length=100)
-    delivery_fee: Decimal = Field(default=Decimal("0"), ge=0)
-    discount: Decimal = Field(default=Decimal("0"), ge=0)
+    delivery_fee: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
+    discount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
     items: list[OrderLineInput] = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
@@ -158,7 +158,7 @@ class CourierUpdateInput(BaseModel):
 
 class ReturnLineInput(BaseModel):
     variant_id: uuid.UUID
-    quantity: int = Field(gt=0)
+    quantity: int = Field(gt=0, le=999)
     disposition: str = Field(pattern="^(SELLABLE|DAMAGED|MISSING)$")
 
 
@@ -166,7 +166,7 @@ class ReturnCreate(BaseModel):
     order_id: uuid.UUID | None = None
     sale_id: uuid.UUID | None = None
     reason: str = Field(min_length=3, max_length=200)
-    items: list[ReturnLineInput] = Field(min_length=1)
+    items: list[ReturnLineInput] = Field(min_length=1, max_length=100)
 
 
 class ReturnItemView(BaseModel):
@@ -222,8 +222,8 @@ class SyncConflictView(BaseModel):
 
 class SupplierCreate(BaseModel):
     name: str = Field(min_length=2, max_length=140)
-    phone: str | None = None
-    email: str | None = None
+    phone: str | None = Field(default=None, min_length=7, max_length=24)
+    email: EmailStr | None = None
 
 
 class SupplierView(BaseModel):
@@ -236,14 +236,14 @@ class SupplierView(BaseModel):
 
 class PurchaseLineInput(BaseModel):
     variant_id: uuid.UUID
-    quantity: int = Field(gt=0)
-    unit_cost: Decimal = Field(gt=0)
+    quantity: int = Field(gt=0, le=999)
+    unit_cost: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
 
 
 class PurchaseCreate(BaseModel):
     supplier_id: uuid.UUID
     reference: str = Field(min_length=2, max_length=60)
-    items: list[PurchaseLineInput] = Field(min_length=1)
+    items: list[PurchaseLineInput] = Field(min_length=1, max_length=100)
 
 
 class PurchaseItemView(BaseModel):

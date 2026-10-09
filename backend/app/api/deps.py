@@ -50,7 +50,7 @@ async def get_current_user(
             User.is_active.is_(True),
         )
     )
-    if user is None or not await session_is_live(session, session_id):
+    if user is None or not await session_is_live(session, session_id, user_id):
         raise AppError("INVALID_ACCESS_TOKEN", "Authentication is required", status_code=401)
     request.state.session_id = session_id
     return user

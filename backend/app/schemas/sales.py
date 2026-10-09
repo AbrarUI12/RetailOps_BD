@@ -16,16 +16,16 @@ class SaleLineRequest(BaseModel):
 
 class PaymentLine(BaseModel):
     method: PaymentMethod
-    amount: Decimal = Field(gt=0, decimal_places=2)
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
 
 
 class CreateSaleRequest(BaseModel):
-    items: list[SaleLineRequest] = Field(min_length=1)
+    items: list[SaleLineRequest] = Field(min_length=1, max_length=100)
     payment_method: PaymentMethod
-    amount_received: Decimal = Field(ge=0, decimal_places=2)
+    amount_received: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
     # Required for SPLIT: the tender lines, e.g. part bKash and part cash.
     payments: list[PaymentLine] | None = Field(default=None, max_length=4)
-    discount: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
+    discount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
     customer_id: uuid.UUID | None = None
     client_transaction_id: uuid.UUID | None = None
 
@@ -46,13 +46,13 @@ class CreateSaleRequest(BaseModel):
 
 class OfflineSaleLine(SaleLineRequest):
     # The price the customer actually paid on the device; absent in queues from older clients.
-    unit_price: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    unit_price: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
 
 
 class OfflineSalePayload(CreateSaleRequest):
     """A sale completed on a device while offline. Its facts are kept as they happened."""
 
-    items: list[OfflineSaleLine] = Field(min_length=1)  # type: ignore[assignment]
+    items: list[OfflineSaleLine] = Field(min_length=1, max_length=100)  # type: ignore[assignment]
     offline_created_at: datetime | None = None
 
 
@@ -114,10 +114,10 @@ class SalePage(BaseModel):
 
 class RefundSaleLine(BaseModel):
     variant_id: uuid.UUID
-    quantity: int = Field(gt=0)
+    quantity: int = Field(gt=0, le=999)
     disposition: str = Field(default="SELLABLE", pattern="^(SELLABLE|DAMAGED|MISSING)$")
 
 
 class RefundSaleRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=200)
-    items: list[RefundSaleLine] = Field(min_length=1)
+    items: list[RefundSaleLine] = Field(min_length=1, max_length=100)

@@ -26,6 +26,9 @@ from app.services.audit_service import add_audit
 # not as theft.
 REUSE_GRACE = timedelta(seconds=30)
 logger = structlog.get_logger(__name__)
+# Always run one Argon2 verification for a login attempt, including unknown emails. This avoids
+# exposing account existence through a large and repeatable timing difference.
+DUMMY_PASSWORD_HASH = hash_password("RetailOps-dummy-password-2026")
 
 
 class AuthService:
@@ -37,7 +40,10 @@ class AuthService:
         self, email: str, password: str, user_agent: str | None
     ) -> tuple[AuthResponse, str]:
         user = await self._find_user(email)
-        if user is None or not user.is_active or not verify_password(password, user.password_hash):
+        password_valid = verify_password(
+            password, user.password_hash if user is not None else DUMMY_PASSWORD_HASH
+        )
+        if user is None or not user.is_active or not password_valid:
             if user is not None:
                 add_audit(self.session, user, "auth.login_failed", "user", user.id)
                 await self.session.commit()
@@ -171,7 +177,10 @@ class AuthService:
                 details={"field": "current_password"},
             )
         self._set_password(user, new_password)
-        keep_family = select(RefreshSession.family_id).where(RefreshSession.id == keep_session)
+        keep_family = select(RefreshSession.family_id).where(
+            RefreshSession.id == keep_session,
+            RefreshSession.user_id == user.id,
+        )
         await self.session.execute(
             update(RefreshSession)
             .where(
@@ -247,14 +256,18 @@ def deliver_password_reset(user: User, link: str) -> None:
     logger.info("password_reset.link", user_id=str(user.id), link=link)
 
 
-async def session_is_live(session: AsyncSession, session_id: uuid.UUID) -> bool:
+async def session_is_live(session: AsyncSession, session_id: uuid.UUID, user_id: uuid.UUID) -> bool:
     """An access token stays valid while its refresh family still has an unrevoked session, so
     rotation keeps working but logout (or reuse detection) cuts off issued access tokens too."""
-    family = select(RefreshSession.family_id).where(RefreshSession.id == session_id)
+    family = select(RefreshSession.family_id).where(
+        RefreshSession.id == session_id,
+        RefreshSession.user_id == user_id,
+    )
     live = await session.scalar(
         select(
             exists().where(
                 RefreshSession.family_id == family.scalar_subquery(),
+                RefreshSession.user_id == user_id,
                 RefreshSession.revoked_at.is_(None),
                 RefreshSession.expires_at > datetime.now(UTC),
             )

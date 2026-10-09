@@ -1,5 +1,5 @@
 import { KeyRound, MailCheck } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { AuthLayout } from "../components/auth/AuthLayout";
@@ -51,14 +51,19 @@ export function ForgotPasswordPage() {
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
-  const token = params.get("token") ?? "";
   const navigate = useNavigate();
+  // Capture the one-time credential once, then remove it from browser history and referrers.
+  const [token] = useState(() => params.get("token") ?? "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const problems = password ? passwordProblems(password) : [];
   const mismatch = Boolean(confirm) && confirm !== password;
+
+  useEffect(() => {
+    if (params.has("token")) void navigate("/reset-password", { replace: true });
+  }, [navigate, params]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

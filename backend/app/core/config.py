@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,9 +41,53 @@ class Settings(BaseSettings):
     @field_validator("cors_origins")
     @classmethod
     def origins_must_be_http(cls, origins: list[str]) -> list[str]:
-        if not origins or any(not origin.startswith(("http://", "https://")) for origin in origins):
+        normalized: list[str] = []
+        for origin in origins:
+            try:
+                parsed = urlsplit(origin)
+                valid_port = parsed.port is not None or ":" not in parsed.netloc
+            except ValueError:
+                valid_port = False
+                parsed = urlsplit("")
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+                or parsed.path not in {"", "/"}
+                or not valid_port
+            ):
+                raise ValueError("CORS origins must contain valid HTTP(S) origins")
+            normalized.append(f"{parsed.scheme}://{parsed.netloc}".rstrip("/"))
+        if not normalized:
             raise ValueError("CORS origins must contain valid HTTP(S) origins")
-        return origins
+        return list(dict.fromkeys(normalized))
+
+    @field_validator("frontend_host")
+    @classmethod
+    def frontend_host_must_be_bare_hostname(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        candidate = value.strip().removeprefix("https://")
+        try:
+            parsed = urlsplit(f"https://{candidate}")
+            valid_port = parsed.port is not None or ":" not in parsed.netloc
+        except ValueError:
+            valid_port = False
+            parsed = urlsplit("")
+        if (
+            not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or not valid_port
+        ):
+            raise ValueError("APP_FRONTEND_HOST must be a bare hostname with an optional port")
+        return parsed.netloc
 
     @model_validator(mode="after")
     def include_frontend_origin(self) -> "Settings":
@@ -67,6 +112,8 @@ class Settings(BaseSettings):
             problems.append("APP_SECURE_COOKIES must be true")
         if any(origin.startswith("http://") for origin in self.cors_origins):
             problems.append("APP_CORS_ORIGINS must use HTTPS")
+        if "*" in self.allowed_hosts:
+            problems.append("APP_ALLOWED_HOSTS must not allow every host")
         if problems:
             raise ValueError("; ".join(problems))
         return self

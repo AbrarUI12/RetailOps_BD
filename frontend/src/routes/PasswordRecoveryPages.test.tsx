@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import { passwordProblems } from "../lib/passwordPolicy";
 import { ForgotPasswordPage, ResetPasswordPage } from "./PasswordRecoveryPages";
@@ -15,6 +15,10 @@ function renderAt(path: string) {
       </Routes>
     </MemoryRouter>,
   );
+}
+
+function LocationProbe() {
+  return <output data-testid="location-search">{useLocation().search}</output>;
 }
 
 describe("password recovery", () => {
@@ -53,5 +57,19 @@ describe("password recovery", () => {
 
     expect(await screen.findByText("Sign-in page")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("removes the reset credential from browser history after capturing it", async () => {
+    render(
+      <MemoryRouter initialEntries={["/reset-password?token=one-time-secret"]}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("location-search")).toHaveTextContent(""));
+    expect(screen.getByRole("button", { name: "Set new password" })).toBeInTheDocument();
   });
 });
