@@ -33,7 +33,7 @@ async def stocked_variant(client: AsyncClient, headers: dict[str, str], quantity
             json={
                 "variant_id": variant_id,
                 "quantity_delta": quantity,
-                "reason": "Opening stock",
+                "reason": "OPENING_STOCK",
                 "note": "Counted",
             },
         )
@@ -42,8 +42,7 @@ async def stocked_variant(client: AsyncClient, headers: dict[str, str], quantity
 
 
 async def stock_of(client: AsyncClient, headers: dict[str, str], variant_id: str) -> dict[str, int]:
-    rows = (await client.get("/api/v1/inventory", headers=headers)).json()
-    row = next(item for item in rows if item["variant_id"] == variant_id)
+    row = (await client.get(f"/api/v1/inventory/{variant_id}", headers=headers)).json()["item"]
     return {
         "physical": row["physical_quantity"],
         "reserved": row["reserved_quantity"],

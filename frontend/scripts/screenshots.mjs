@@ -31,7 +31,7 @@ try {
       await page.goto(`${baseUrl}${route}`);
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(400);
-      const file = `${name}${route.replaceAll("/", "-")}.png`;
+      const file = `${name}${route.replaceAll(/[^a-z0-9]+/gi, "-")}.png`;
       await page.screenshot({ path: path.join(outDir, file), fullPage: true });
       console.log(`captured ${file}`);
     }

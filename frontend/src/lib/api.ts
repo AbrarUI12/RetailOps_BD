@@ -86,8 +86,11 @@ export interface Variant {
   barcode: string | null;
   price: string;
   cost: string;
+  attributes: Record<string, string>;
   reorder_level: number;
   is_active: boolean;
+  /** Sellable stock at the signed-in branch. */
+  available_quantity: number;
 }
 
 export interface Product {
@@ -95,13 +98,32 @@ export interface Product {
   name: string;
   sku: string;
   description: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  image_url: string | null;
   is_active: boolean;
   created_at: string;
   variants: Variant[];
 }
 
+export interface Page<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  product_count: number;
+}
+
 export interface InventoryItem {
   variant_id: string;
+  product_id: string;
+  category_name: string | null;
   product_name: string;
   variant_name: string;
   sku: string;
@@ -137,4 +159,23 @@ export interface AppNotification {
   entity_type: string | null;
   entity_id: string | null;
   created_at: string;
+}
+
+export interface Movement {
+  id: string;
+  variant_id: string;
+  movement_type: string;
+  quantity_delta: number;
+  previous_quantity: number;
+  new_quantity: number;
+  note: string | null;
+  reference_type: string | null;
+  reference_id: string | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface InventoryDetail {
+  item: InventoryItem;
+  movements: Movement[];
 }

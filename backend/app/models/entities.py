@@ -193,6 +193,7 @@ class Product(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(180), index=True)
     sku: Mapped[str] = mapped_column(String(64))
     description: Mapped[str | None] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     variants: Mapped[list["ProductVariant"]] = relationship(
         back_populates="product", cascade="all, delete-orphan", lazy="selectin"

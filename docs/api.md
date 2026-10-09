@@ -25,8 +25,9 @@ The OpenAPI schema and interactive docs are served at `/docs`. Business resource
 | --- | --- | --- |
 | Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/logout-all`, `GET /auth/me`, `POST /auth/forgot-password`, `POST /auth/reset-password`, `POST /auth/change-password` | Login is rate-limited to 10 attempts per minute per client IP. Refresh tokens rotate, and reusing one revokes the whole session family. Logout invalidates access tokens already issued. Reset tokens are one-time, expire after 30 minutes, and end every session. Passwords need at least 10 characters mixing letters and numbers |
 | Workspace | `GET /workspace/counts`, `GET /search?q=` | Badge counts and command-palette search, limited to what the role may open |
-| Products | `GET/POST /products`, `GET/PATCH /products/{id}`, `GET /products/barcode/{barcode}` | variants are nested |
-| Inventory | `GET /inventory`, `POST /inventory/adjustments`, `GET /inventory/movements`, `GET /inventory/low-stock` | adjustments write ledger movements |
+| Categories | `GET/POST /categories`, `PATCH/DELETE /categories/{id}` | A category still in use cannot be deleted |
+| Products | `GET/POST /products?search&category_id&active&stock&page`, `GET/PATCH/DELETE /products/{id}`, `GET/POST /products/{id}/variants`, `PATCH /variants/{id}`, `GET /products/barcode/{barcode}` | `DELETE` deactivates rather than removes. Duplicates return `DUPLICATE_SKU` or `DUPLICATE_BARCODE`. Variants include `available_quantity` at your branch |
+| Inventory | `GET /inventory?search&status&category_id&page`, `GET /inventory/{variant_id}`, `POST /inventory/adjustments`, `GET /inventory/movements`, `GET /inventory/low-stock` | Adjustments take `counted_quantity` or `quantity_delta`, a `reason` code and a `note`, and write ledger movements |
 | POS | `POST /pos/sales`, `GET /pos/sales/{id}` | idempotent on `client_transaction_id`. Never sells below available stock. `SPLIT` takes a `payments` list; only cash can produce change; payment rows store the amount applied |
 | Customers | `GET/POST /customers`, `GET /customers/{id}` | Bangladesh phone normalization |
 | Orders | `GET/POST /orders`, `POST /orders/{id}/confirm`, `POST /orders/{id}/cancel`, `POST /orders/{id}/transition` | COD risk calculated on create |

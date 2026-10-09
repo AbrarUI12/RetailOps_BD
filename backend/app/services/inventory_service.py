@@ -1,18 +1,37 @@
 import uuid
+from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.models.entities import (
+    Category,
     InventoryBalance,
     InventoryMovement,
     Product,
     ProductVariant,
     User,
 )
-from app.schemas.inventory import InventoryAdjustment, InventoryView, MovementView
+from app.schemas.inventory import (
+    REASON_LABELS,
+    InventoryAdjustment,
+    InventoryDetail,
+    InventoryPage,
+    InventoryView,
+    MovementView,
+)
 from app.services.audit_service import add_audit
+
+StockStatus = Literal["in_stock", "low", "out"]
+
+
+def stock_status(available: int, reorder_level: int) -> str:
+    if available <= 0:
+        return "OUT_OF_STOCK"
+    if available <= reorder_level:
+        return "LOW_STOCK"
+    return "IN_STOCK"
 
 
 class InventoryService:
@@ -20,54 +39,121 @@ class InventoryService:
         self.session = session
         self.user = user
 
-    async def list_inventory(self) -> list[InventoryView]:
-        rows = (
-            await self.session.execute(
-                select(ProductVariant, Product, InventoryBalance)
-                .join(Product, Product.id == ProductVariant.product_id)
-                .outerjoin(
-                    InventoryBalance,
-                    (InventoryBalance.variant_id == ProductVariant.id)
-                    & (InventoryBalance.branch_id == self.user.branch_id),
+    def _rows_query(
+        self,
+    ) -> tuple[Select[ProductVariant, Product, str, int, int], ColumnElement[int]]:
+        physical: ColumnElement[int] = func.coalesce(InventoryBalance.physical_quantity, 0)
+        reserved: ColumnElement[int] = func.coalesce(InventoryBalance.reserved_quantity, 0)
+        return (
+            select(ProductVariant, Product, Category.name, physical, reserved)
+            .join(Product, Product.id == ProductVariant.product_id)
+            .outerjoin(Category, Category.id == Product.category_id)
+            .outerjoin(
+                InventoryBalance,
+                (InventoryBalance.variant_id == ProductVariant.id)
+                & (InventoryBalance.branch_id == self.user.branch_id),
+            )
+            .where(ProductVariant.organization_id == self.user.organization_id)
+        ), physical - reserved
+
+    @staticmethod
+    def _view(
+        variant: ProductVariant,
+        product: Product,
+        category: str | None,
+        physical: int,
+        reserved: int,
+    ) -> InventoryView:
+        available = physical - reserved
+        return InventoryView(
+            variant_id=variant.id,
+            product_id=product.id,
+            product_name=product.name,
+            variant_name=variant.name,
+            category_name=category,
+            sku=variant.sku,
+            barcode=variant.barcode,
+            physical_quantity=physical,
+            reserved_quantity=reserved,
+            available_quantity=available,
+            reorder_level=variant.reorder_level,
+            stock_status=stock_status(available, variant.reorder_level),
+        )
+
+    async def list_inventory(
+        self,
+        *,
+        search: str | None = None,
+        status: StockStatus | None = None,
+        category_id: uuid.UUID | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> InventoryPage:
+        query, available = self._rows_query()
+        query = query.where(ProductVariant.is_active.is_(True))
+        if search and search.strip():
+            term = f"%{search.strip()}%"
+            query = query.where(
+                or_(
+                    Product.name.ilike(term),
+                    ProductVariant.name.ilike(term),
+                    ProductVariant.sku.ilike(term),
+                    ProductVariant.barcode == search.strip(),
                 )
-                .where(ProductVariant.organization_id == self.user.organization_id)
-                .order_by(Product.name, ProductVariant.name)
             )
-        ).all()
-        result: list[InventoryView] = []
-        for variant, product, balance in rows:
-            physical = balance.physical_quantity if balance else 0
-            reserved = balance.reserved_quantity if balance else 0
-            available = physical - reserved
-            status = (
-                "OUT_OF_STOCK"
-                if available <= 0
-                else "LOW_STOCK"
-                if available <= variant.reorder_level
-                else "IN_STOCK"
-            )
-            result.append(
-                InventoryView(
-                    variant_id=variant.id,
-                    product_name=product.name,
-                    variant_name=variant.name,
-                    sku=variant.sku,
-                    barcode=variant.barcode,
-                    physical_quantity=physical,
-                    reserved_quantity=reserved,
-                    available_quantity=available,
-                    reorder_level=variant.reorder_level,
-                    stock_status=status,
-                )
-            )
-        return result
+        if category_id:
+            query = query.where(Product.category_id == category_id)
+        if status == "out":
+            query = query.where(available <= 0)
+        elif status == "low":
+            query = query.where(available > 0, available <= ProductVariant.reorder_level)
+        elif status == "in_stock":
+            query = query.where(available > ProductVariant.reorder_level)
+        total = await self.session.scalar(select(func.count()).select_from(query.subquery())) or 0
+        rows = await self.session.execute(
+            query.order_by(Product.name, ProductVariant.name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        return InventoryPage(
+            items=[self._view(v, p, c, ph, rs) for v, p, c, ph, rs in rows.all()],
+            page=page,
+            page_size=page_size,
+            total=total,
+        )
+
+    async def item(self, variant_id: uuid.UUID) -> InventoryView:
+        query, _ = self._rows_query()
+        row = (await self.session.execute(query.where(ProductVariant.id == variant_id))).first()
+        if row is None:
+            raise AppError("VARIANT_NOT_FOUND", "Product variant was not found", status_code=404)
+        variant, product, category, physical, reserved = row
+        return self._view(variant, product, category, physical, reserved)
+
+    async def detail(self, variant_id: uuid.UUID) -> InventoryDetail:
+        return InventoryDetail(
+            item=await self.item(variant_id), movements=await self.movements(variant_id, limit=50)
+        )
 
     async def adjust(self, command: InventoryAdjustment) -> InventoryView:
+        current = await self.item(command.variant_id)
+        delta = (
+            command.quantity_delta
+            if command.quantity_delta is not None
+            else (command.counted_quantity or 0) - current.physical_quantity
+        )
+        if delta == 0:
+            raise AppError(
+                "NO_STOCK_CHANGE",
+                "The counted quantity matches the recorded stock; nothing to adjust",
+                status_code=422,
+            )
+        reason = REASON_LABELS[command.reason]
         await self.apply_movement(
             variant_id=command.variant_id,
-            quantity_delta=command.quantity_delta,
-            movement_type="MANUAL_ADJUSTMENT",
-            note=f"{command.reason}: {command.note}",
+            quantity_delta=delta,
+            movement_type="DAMAGED" if command.reason == "DAMAGED" else "MANUAL_ADJUSTMENT",
+            note=f"{reason}: {command.note}",
         )
         add_audit(
             self.session,
@@ -75,12 +161,16 @@ class InventoryService:
             "inventory.adjusted",
             "product_variant",
             command.variant_id,
-            new_data={"quantity_delta": command.quantity_delta, "reason": command.reason},
+            old_data={"physical_quantity": current.physical_quantity},
+            new_data={
+                "physical_quantity": current.physical_quantity + delta,
+                "quantity_delta": delta,
+                "reason": command.reason,
+                "note": command.note,
+            },
         )
         await self.session.commit()
-        return next(
-            item for item in await self.list_inventory() if item.variant_id == command.variant_id
-        )
+        return await self.item(command.variant_id)
 
     async def apply_movement(
         self,
@@ -177,15 +267,21 @@ class InventoryService:
         if balance:
             balance.reserved_quantity = max(0, balance.reserved_quantity - quantity)
 
-    async def movements(self, variant_id: uuid.UUID | None = None) -> list[MovementView]:
-        query = select(InventoryMovement).where(
-            InventoryMovement.organization_id == self.user.organization_id,
-            InventoryMovement.branch_id == self.user.branch_id,
+    async def movements(
+        self, variant_id: uuid.UUID | None = None, *, limit: int = 200
+    ) -> list[MovementView]:
+        query = (
+            select(InventoryMovement, User.full_name)
+            .outerjoin(User, User.id == InventoryMovement.created_by)
+            .where(
+                InventoryMovement.organization_id == self.user.organization_id,
+                InventoryMovement.branch_id == self.user.branch_id,
+            )
         )
         if variant_id:
             query = query.where(InventoryMovement.variant_id == variant_id)
-        movements = await self.session.scalars(
-            query.order_by(InventoryMovement.created_at.desc()).limit(200)
+        rows = await self.session.execute(
+            query.order_by(InventoryMovement.created_at.desc()).limit(limit)
         )
         return [
             MovementView(
@@ -196,7 +292,10 @@ class InventoryService:
                 previous_quantity=item.previous_quantity,
                 new_quantity=item.new_quantity,
                 note=item.note,
+                reference_type=item.reference_type,
+                reference_id=item.reference_id,
+                created_by_name=name,
                 created_at=item.created_at,
             )
-            for item in movements
+            for item, name in rows.all()
         ]

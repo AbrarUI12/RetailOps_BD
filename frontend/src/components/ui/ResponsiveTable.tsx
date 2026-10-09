@@ -13,6 +13,8 @@ export interface Column<T> {
   trailing?: boolean;
   /** Left out of the stacked card layout. */
   hideOnMobile?: boolean;
+  /** On cards, rendered full-width below the fields without a label (row actions). */
+  cardFooter?: boolean;
 }
 
 interface ResponsiveTableProps<T> {
@@ -29,7 +31,8 @@ interface ResponsiveTableProps<T> {
 export function ResponsiveTable<T>({ caption, columns, onRowClick, rowKey, rowLabel, rows }: ResponsiveTableProps<T>) {
   const primary = columns.find((column) => column.primary) ?? columns[0];
   const trailing = columns.filter((column) => column.trailing);
-  const fields = columns.filter((column) => column !== primary && !column.trailing && !column.hideOnMobile);
+  const fields = columns.filter((column) => column !== primary && !column.trailing && !column.hideOnMobile && !column.cardFooter);
+  const footers = columns.filter((column) => column.cardFooter && !column.hideOnMobile);
   const open = (row: T) => onRowClick?.(row);
   const primaryCell = (row: T) =>
     onRowClick ? (
@@ -100,6 +103,7 @@ export function ResponsiveTable<T>({ caption, columns, onRowClick, rowKey, rowLa
                   ))}
                 </dl>
               ) : null}
+              {footers.map((column) => <div className="row-card-footer" key={column.key}>{column.cell(row)}</div>)}
             </div>
           </li>
         ))}

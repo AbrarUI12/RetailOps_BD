@@ -55,7 +55,7 @@ async def test_catalog_inventory_sale_and_idempotency(db_client: DatabaseHarness
         json={
             "variant_id": variant_id,
             "quantity_delta": 10,
-            "reason": "Opening stock",
+            "reason": "OPENING_STOCK",
             "note": "Verified count",
         },
     )
@@ -73,7 +73,7 @@ async def test_catalog_inventory_sale_and_idempotency(db_client: DatabaseHarness
     assert second.json()["id"] == first.json()["id"]
     assert second.json()["idempotent_replay"] is True
     inventory = await db_client.client.get("/api/v1/inventory", headers=headers)
-    assert inventory.json()[0]["available_quantity"] == 8
+    assert inventory.json()["items"][0]["available_quantity"] == 8
 
 
 async def test_cashier_cannot_create_product(db_client: DatabaseHarness) -> None:
