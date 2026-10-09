@@ -259,7 +259,9 @@ class InventoryMovement(Base):
 
 class Customer(Base, TimestampMixin):
     __tablename__ = "customers"
-    __table_args__ = (Index("ix_customers_org_phone", "organization_id", "normalized_phone"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "normalized_phone", name="uq_customers_org_phone"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
