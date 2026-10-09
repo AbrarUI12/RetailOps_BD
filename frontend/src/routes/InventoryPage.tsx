@@ -23,7 +23,7 @@ import { useAuthStore } from "../stores/authStore";
 const PAGE_SIZE = 50;
 const STATUS_FILTERS = [
   { value: "all", label: "All" },
-  { value: "low", label: "Low stock" },
+  { value: "reorder", label: "Needs reorder" },
   { value: "out", label: "Out of stock" },
   { value: "in_stock", label: "Healthy" },
 ] as const;
@@ -34,7 +34,7 @@ export function InventoryPage() {
   const canAdjust = can(user, "inventory:adjust");
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get("search") ?? "");
-  const [status, setStatus] = useState<StatusFilter>(params.get("filter") === "low" ? "low" : "all");
+  const [status, setStatus] = useState<StatusFilter>(params.get("filter") === "low" ? "reorder" : "all");
   const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(1);
   const [adjusting, setAdjusting] = useState<InventoryItem | null>(null);

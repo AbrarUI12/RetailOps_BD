@@ -11,8 +11,6 @@ from app.core.security import hash_password
 from app.models.entities import (
     Branch,
     Category,
-    InventoryBalance,
-    InventoryMovement,
     Organization,
     Permission,
     Product,
@@ -21,6 +19,7 @@ from app.models.entities import (
     User,
     UserRole,
 )
+from app.services.inventory_service import InventoryService
 
 
 async def seed() -> None:
@@ -66,19 +65,23 @@ async def seed() -> None:
             ("support@retailopsbd.com", "Sadia Islam", UserRole.SUPPORT),
             ("warehouse@retailopsbd.com", "Rafi Hasan", UserRole.WAREHOUSE),
         ]
-        session.add_all(
-            [
-                User(
-                    organization_id=organization.id,
-                    branch_id=branch.id,
-                    role_id=roles[role].id,
-                    email=email,
-                    full_name=name,
-                    password_hash=password_hash,
-                )
-                for email, name, role in users
-            ]
-        )
+        staff = [
+            User(
+                organization_id=organization.id,
+                branch_id=branch.id,
+                role_id=roles[role].id,
+                email=email,
+                full_name=name,
+                password_hash=password_hash,
+            )
+            for email, name, role in users
+        ]
+        session.add_all(staff)
+        await session.flush()
+        owner = staff[0]
+        await session.refresh(owner, ["role"])
+        # Opening stock goes through the inventory service like every other stock change.
+        inventory = InventoryService(session, owner)
 
         catalog = [
             ("Apparel", "Premium Panjabi", "PAN", "Classic / M", "PAN-M", "100001", 2490, 1320, 28),
@@ -169,26 +172,11 @@ async def seed() -> None:
             product.variants.append(variant)
             session.add(product)
             await session.flush()
-            session.add(
-                InventoryBalance(
-                    organization_id=organization.id,
-                    branch_id=branch.id,
-                    variant_id=variant.id,
-                    physical_quantity=stock,
-                    reserved_quantity=0,
-                )
-            )
-            session.add(
-                InventoryMovement(
-                    organization_id=organization.id,
-                    branch_id=branch.id,
-                    variant_id=variant.id,
-                    movement_type="OPENING_STOCK",
-                    quantity_delta=stock,
-                    previous_quantity=0,
-                    new_quantity=stock,
-                    note="Demo opening stock",
-                )
+            await inventory.apply_movement(
+                variant_id=variant.id,
+                quantity_delta=stock,
+                movement_type="OPENING_STOCK",
+                note="Demo opening stock",
             )
         await session.commit()
         print("Seeded RetailOps BD demo. Login: owner@retailopsbd.com / RetailOps123!")

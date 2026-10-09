@@ -284,3 +284,51 @@ async def test_another_tenant_cannot_see_or_edit_products(db_client: DatabaseHar
         )
     assert name == "Product PRIVATE"
     assert (await stock_of(client, owner, str(product["variants"][0]["id"])))["physical"] == 0  # type: ignore[index]
+
+
+async def test_balance_always_equals_the_ledger(db_client: DatabaseHarness) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 10)
+    adjustments = [
+        {"quantity_delta": 5, "reason": "FOUND", "note": "Back room"},
+        {"quantity_delta": -4, "reason": "DAMAGED", "note": "Torn packaging"},
+        {"counted_quantity": 9, "reason": "COUNT_CORRECTION", "note": "Recount"},
+    ]
+    for adjustment in adjustments:
+        response = await client.post(
+            "/api/v1/inventory/adjustments",
+            headers=headers,
+            json={"variant_id": variant_id, **adjustment},
+        )
+        assert response.status_code == 201
+    sale = await client.post(
+        "/api/v1/pos/sales",
+        headers=headers,
+        json={
+            "items": [{"variant_id": variant_id, "quantity": 2}],
+            "payment_method": "CASH",
+            "amount_received": "2000.00",
+        },
+    )
+    assert sale.status_code == 201
+
+    detail = (await client.get(f"/api/v1/inventory/{variant_id}", headers=headers)).json()
+
+    ledger_total = sum(movement["quantity_delta"] for movement in detail["movements"])
+    assert detail["item"]["physical_quantity"] == ledger_total == 7
+    for newer, older in zip(detail["movements"], detail["movements"][1:], strict=False):
+        assert newer["previous_quantity"] == older["new_quantity"]
+
+
+async def test_low_stock_query_includes_out_of_stock(db_client: DatabaseHarness) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    low = await stocked_variant(client, headers, 2)
+    await stocked_variant(client, headers, 40)
+    empty = await make_product(client, headers, "EMPTY")
+
+    response = await client.get("/api/v1/inventory/low-stock", headers=headers)
+
+    ids = {item["variant_id"] for item in response.json()["items"]}
+    assert ids == {low, empty["variants"][0]["id"]}  # type: ignore[index]

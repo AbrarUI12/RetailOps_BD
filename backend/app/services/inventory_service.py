@@ -23,7 +23,7 @@ from app.schemas.inventory import (
 )
 from app.services.audit_service import add_audit
 
-StockStatus = Literal["in_stock", "low", "out"]
+StockStatus = Literal["in_stock", "low", "out", "reorder"]
 
 
 def stock_status(available: int, reorder_level: int) -> str:
@@ -107,6 +107,9 @@ class InventoryService:
             query = query.where(available <= 0)
         elif status == "low":
             query = query.where(available > 0, available <= ProductVariant.reorder_level)
+        elif status == "reorder":
+            # Everything that needs restocking: low and out of stock together.
+            query = query.where(available <= ProductVariant.reorder_level)
         elif status == "in_stock":
             query = query.where(available > ProductVariant.reorder_level)
         total = await self.session.scalar(select(func.count()).select_from(query.subquery())) or 0

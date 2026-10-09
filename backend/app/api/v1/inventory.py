@@ -23,7 +23,7 @@ async def list_inventory(
     session: SessionDep,
     user: Reader,
     search: str | None = None,
-    status: Literal["in_stock", "low", "out"] | None = None,
+    status: Literal["in_stock", "low", "out", "reorder"] | None = None,
     category_id: uuid.UUID | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -51,7 +51,8 @@ async def inventory_movements(
 
 @router.get("/low-stock", response_model=InventoryPage)
 async def low_stock(session: SessionDep, user: Reader) -> InventoryPage:
-    return await InventoryService(session, user).list_inventory(status="low", page_size=200)
+    """Variants at or below their reorder level, out-of-stock included."""
+    return await InventoryService(session, user).list_inventory(status="reorder", page_size=200)
 
 
 @router.get("/{variant_id}", response_model=InventoryDetail)
