@@ -20,7 +20,10 @@ export function AnimatedNumber({ className, format, value }: AnimatedNumberProps
       setDisplay(value);
       return undefined;
     }
-    const controls = animate(from, value, { duration: 0.35, ease: [0.22, 1, 0.36, 1], onUpdate: setDisplay });
+    // Intermediate frames keep the target's precision (no stray paisa while counting to ৳210).
+    const decimals = Number.isInteger(value) && Number.isInteger(from) ? 0 : 2;
+    const round = (frame: number) => Number(frame.toFixed(decimals));
+    const controls = animate(from, value, { duration: 0.35, ease: [0.22, 1, 0.36, 1], onUpdate: (frame) => setDisplay(round(frame)) });
     return () => controls.stop();
   }, [reduceMotion, value]);
 

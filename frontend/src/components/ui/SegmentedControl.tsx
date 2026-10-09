@@ -1,6 +1,3 @@
-import { motion } from "motion/react";
-import { useId } from "react";
-
 import { cn } from "../../lib/utils";
 
 interface Option<T extends string> {
@@ -16,20 +13,19 @@ interface SegmentedControlProps<T extends string> {
   className?: string;
 }
 
-/** Mutually exclusive choice (timeframes, views) with a shared sliding indicator (plan §9). */
+/**
+ * Mutually exclusive choice (timeframes, filters, ৳/%). The selected state is pure CSS so it stays
+ * correct inside sheets and drawers whose own entrance transforms would distort a shared Motion
+ * layout indicator. Tabs (components/ui/Tabs) keep the sliding indicator.
+ */
 export function SegmentedControl<T extends string>({ className, label, onChange, options, value }: SegmentedControlProps<T>) {
-  const layoutId = useId();
   return (
     <div aria-label={label} className={cn("segmented", className)} role="group">
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <button aria-pressed={active} key={option.value} onClick={() => onChange(option.value)} type="button">
-            {active ? <motion.span className="segmented-indicator" layoutId={layoutId} transition={{ type: "spring", stiffness: 500, damping: 40 }} /> : null}
-            <span>{option.label}</span>
-          </button>
-        );
-      })}
+      {options.map((option) => (
+        <button aria-pressed={option.value === value} key={option.value} onClick={() => onChange(option.value)} type="button">
+          <span>{option.label}</span>
+        </button>
+      ))}
     </div>
   );
 }
