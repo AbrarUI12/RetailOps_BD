@@ -58,6 +58,7 @@ The draft is now committed (`b7e932a`…`bd0967d`) and is being finished in the 
 | 7f | **Session 16 completed (returns/RTO, plan §26).** The existing tenant-scoped returns aggregate limits cumulative quantities to sold units, rejects orders that never left the shop, requires a disposition for every line and closes eligible order state paths. `SELLABLE` returns increase physical stock; `DAMAGED` and `MISSING` write immutable zero-delta condition/loss movements without making units sellable. Returns now apply to the originating order/sale branch rather than the operator's current branch. The order drawer adds a permission-aware Returns & RTO card, prior receipt history and a focused receive/inspect dialog with remaining quantities, explicit stock effects, reason and sellable/damaged/missing choice | ✅ |
 | 7 | **Customers, social orders, reservations, risk, courier and returns vertical slice complete** | ✅ |
 | 8a | **Session 17 completed (durable offline sale, plan §15).** Dexie v3 atomically stores the pending transaction, organization-owned local sale/receipt, separate immutable item snapshots and optimistic catalog stock in one IndexedDB transaction. A generated client transaction UUID is idempotent on-device, so lost-response requeue cannot double-decrement stock. Offline checkout immediately updates the global pending counter, keeps the printable local invoice and clears the cart only after durable commit; its success screen explains deferred sync and retains Print. The existing shell offline banner and sync indicator expose connectivity and pending count | ✅ |
+| 8b | **Session 18 completed (sync API and idempotency, plan §16).** Organization-scoped `sync_transactions` bind each client UUID to a canonical sale payload before processing. Terminal duplicate submissions return the original server record; a UUID reused with different facts is rejected, and a concurrent duplicate sees `SYNC_IN_PROGRESS` instead of racing the first request or overwriting conflict state. `GET /sync/status/{client_transaction_id}` exposes durable reconciliation state. Sale import retains the offline time/prices, uses the sale UUID as a second idempotency boundary and commits sale, payment, stock movement and sync result exactly once | ✅ |
 | 8 | Offline completeness (local stock, catalog sync, Sync Center actions, IndexedDB namespacing), PWA, Playwright | ☐ |
 | 9 | Suppliers, purchases, audit log, notifications | ☐ |
 | 10 | Security, performance and accessibility pass | ☐ |
@@ -85,6 +86,8 @@ The full plan with per-phase detail lives in the session plan. The audit finding
 
 **Verification after Session 17:** 123 backend tests and 94 frontend tests. The POS integration test completes a sale with the browser offline, verifies the pending payload, organization-owned receipt, item snapshot, optimistic stock decrement, pending indicator and printable receipt, then closes and reopens IndexedDB to prove every record survives a reload boundary. ESLint, TypeScript, Vitest and the production build pass.
 
+**Verification after Session 18:** 123 backend tests and 94 frontend tests. The mandatory duplicate-submission integration test asserts one sale, one payment, one sale movement, one sync transaction and one stock decrement, then verifies replay returns the same server ID, the status endpoint matches it and a changed payload under that UUID is rejected. Ruff format/lint, mypy and the full backend suite pass.
+
 **Verification after Session 8:** 87 backend tests and 76 frontend tests. The new backend coverage verifies the complete persisted aggregate and rollback after a partially staged multi-line checkout; the new POS test verifies a server stock rejection remains online, visible and recoverable without clearing or offline-queueing the cart. Ruff format/lint, mypy, ESLint, TypeScript and the production build pass. PostgreSQL re-verification is delegated to CI because Docker Desktop was not running locally.
 
 **Verification after Session 7:** 85 backend tests and 75 frontend tests, including a POS page integration test on real Dexie covering F4/F6/F8/F9/Esc, quick cash and change, split, percent discount, customer selection and underpayment.
@@ -111,4 +114,4 @@ The full plan with per-phase detail lives in the session plan. The audit finding
 
 ## Next
 
-Session 18: re-audit the sync transaction/idempotency API and its mandatory duplicate-submission invariants.
+Session 19: complete the frontend sync engine lifecycle, classification, retry/backoff and visible queue state.

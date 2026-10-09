@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -27,6 +28,15 @@ async def sync_conflicts(
     user: Annotated[User, Depends(require_permission("inventory:read"))],
 ) -> list[dict[str, object]]:
     return await SyncService(session, user).conflicts()
+
+
+@router.get("/status/{client_transaction_id}", response_model=SyncResult)
+async def sync_status(
+    client_transaction_id: uuid.UUID,
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("sale:create"))],
+) -> SyncResult:
+    return await SyncService(session, user).status(client_transaction_id)
 
 
 @router.get("/catalog-version", response_model=CatalogVersion)

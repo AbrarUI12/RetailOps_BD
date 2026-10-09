@@ -1,5 +1,8 @@
+import uuid
+
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
@@ -22,20 +25,6 @@ class SyncService:
         self.user = user
 
     async def sync_sale(self, command: SyncSaleInput) -> SyncResult:
-        existing = await self.session.scalar(
-            select(SyncTransaction).where(
-                SyncTransaction.organization_id == self.user.organization_id,
-                SyncTransaction.client_transaction_id == command.client_transaction_id,
-            )
-        )
-        if existing and existing.status in {SyncStatus.SYNCED, SyncStatus.CONFLICT}:
-            return SyncResult(
-                client_transaction_id=command.client_transaction_id,
-                status=existing.status.value,
-                server_record_id=existing.server_record_id,
-                idempotent_replay=True,
-                conflict=existing.status == SyncStatus.CONFLICT,
-            )
         try:
             sale_command = OfflineSalePayload.model_validate(
                 {**command.payload, "client_transaction_id": command.client_transaction_id}
@@ -51,6 +40,25 @@ class SyncService:
                     )
                 },
             ) from exc
+        canonical_payload = sale_command.model_dump(
+            mode="json", exclude={"client_transaction_id"}, exclude_none=False
+        )
+        existing = await self._transaction(command.client_transaction_id)
+        if existing:
+            if existing.payload not in (command.payload, canonical_payload):
+                raise AppError(
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "This transaction ID is already bound to a different sale payload",
+                    status_code=409,
+                )
+            if existing.status in {SyncStatus.SYNCED, SyncStatus.CONFLICT}:
+                return self._result(existing, replay=True)
+            if existing.status == SyncStatus.SYNCING:
+                raise AppError(
+                    "SYNC_IN_PROGRESS",
+                    "This transaction is already being processed; retry shortly",
+                    status_code=409,
+                ) from None
         device = await self.session.scalar(
             select(Device).where(
                 Device.organization_id == self.user.organization_id,
@@ -71,14 +79,32 @@ class SyncService:
             device_id=device.id,
             client_transaction_id=command.client_transaction_id,
             transaction_type="SALE",
-            payload=command.payload,
+            payload=canonical_payload,
             status=SyncStatus.SYNCING,
             server_record_id=None,
             error=None,
         )
         transaction.status = SyncStatus.SYNCING
         self.session.add(transaction)
-        await self.session.commit()
+        try:
+            await self.session.commit()
+        except IntegrityError:
+            # Another request claimed this organization-scoped UUID between our SELECT and INSERT.
+            await self.session.rollback()
+            winner = await self._transaction(command.client_transaction_id)
+            if winner and winner.payload in (command.payload, canonical_payload):
+                if winner.status in {SyncStatus.SYNCED, SyncStatus.CONFLICT}:
+                    return self._result(winner, replay=True)
+                raise AppError(
+                    "SYNC_IN_PROGRESS",
+                    "This transaction is already being processed; retry shortly",
+                    status_code=409,
+                ) from None
+            raise AppError(
+                "IDEMPOTENCY_KEY_REUSED",
+                "This transaction ID is already bound to a different sale payload",
+                status_code=409,
+            ) from None
         try:
             outcome = await SalesService(self.session, self.user).create_offline(sale_command)
         except AppError as exc:
@@ -139,6 +165,34 @@ class SyncService:
             server_record_id=sale.id,
             idempotent_replay=sale.idempotent_replay,
             conflict=bool(conflicts),
+        )
+
+    async def status(self, client_transaction_id: uuid.UUID) -> SyncResult:
+        transaction = await self._transaction(client_transaction_id)
+        if transaction is None:
+            raise AppError(
+                "SYNC_TRANSACTION_NOT_FOUND",
+                "Sync transaction was not found",
+                status_code=404,
+            )
+        return self._result(transaction, replay=False)
+
+    async def _transaction(self, client_transaction_id: uuid.UUID) -> SyncTransaction | None:
+        return await self.session.scalar(
+            select(SyncTransaction).where(
+                SyncTransaction.organization_id == self.user.organization_id,
+                SyncTransaction.client_transaction_id == client_transaction_id,
+            )
+        )
+
+    @staticmethod
+    def _result(transaction: SyncTransaction, *, replay: bool) -> SyncResult:
+        return SyncResult(
+            client_transaction_id=transaction.client_transaction_id,
+            status=transaction.status.value,
+            server_record_id=transaction.server_record_id,
+            idempotent_replay=replay,
+            conflict=transaction.status == SyncStatus.CONFLICT,
         )
 
     async def conflicts(self) -> list[dict[str, object]]:

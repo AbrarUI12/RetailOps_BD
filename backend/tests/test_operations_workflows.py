@@ -3,7 +3,7 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy import func, select
 
-from app.models.entities import InventoryMovement, Payment, Sale, SyncConflict
+from app.models.entities import InventoryMovement, Payment, Sale, SyncConflict, SyncTransaction
 from tests.conftest import DatabaseHarness
 from tests.test_api_workflows import login
 
@@ -81,6 +81,7 @@ async def test_offline_sale_synced_twice_creates_exactly_one_sale(
     async with db_client.sessions() as session:
         assert await session.scalar(select(func.count(Sale.id))) == 1
         assert await session.scalar(select(func.count(Payment.id))) == 1
+        assert await session.scalar(select(func.count(SyncTransaction.id))) == 1
         sale_movements = await session.scalar(
             select(func.count(InventoryMovement.id)).where(
                 InventoryMovement.reference_type == "sale"
@@ -88,6 +89,22 @@ async def test_offline_sale_synced_twice_creates_exactly_one_sale(
         )
         assert sale_movements == 1
     assert (await stock_of(client, headers, variant_id))["physical"] == 3
+
+    status = await client.get(
+        f"/api/v1/sync/status/{transaction['client_transaction_id']}", headers=headers
+    )
+    assert status.json() == {
+        **second.json(),
+        "idempotent_replay": False,
+    }
+
+    changed = {
+        **transaction,
+        "payload": {**transaction["payload"], "discount": "1.00"},
+    }
+    reused = await client.post("/api/v1/sync/sales", headers=headers, json=changed)
+    assert reused.status_code == 409
+    assert reused.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
 
 
 async def test_offline_oversell_keeps_sale_and_raises_conflict(db_client: DatabaseHarness) -> None:
