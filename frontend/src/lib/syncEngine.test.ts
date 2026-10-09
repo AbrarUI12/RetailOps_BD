@@ -4,16 +4,24 @@ const rows = new Map<string, PendingSale>();
 const apiMock = vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>();
 
 vi.mock("./offlineDb", () => {
-  const byStatus = (statuses: string[]) => [...rows.values()].filter((row) => statuses.includes(row.status));
+  const byStatus = (statuses: string[]) =>
+    [...rows.values()].filter((row) => statuses.includes(row.status));
   return {
     offlineDb: {
       pendingSales: {
         where: () => ({
           anyOf: (...statuses: string[]) => ({
-            sortBy: () => Promise.resolve(byStatus(statuses).sort((a, b) => a.created_at.localeCompare(b.created_at))),
+            sortBy: () =>
+              Promise.resolve(
+                byStatus(statuses).sort((a, b) =>
+                  a.created_at.localeCompare(b.created_at),
+                ),
+              ),
             count: () => Promise.resolve(byStatus(statuses).length),
           }),
-          equals: (status: string) => ({ count: () => Promise.resolve(byStatus([status]).length) }),
+          equals: (status: string) => ({
+            count: () => Promise.resolve(byStatus([status]).length),
+          }),
         }),
         update: (id: string, changes: Partial<PendingSale>) => {
           rows.set(id, { ...rows.get(id)!, ...changes });
@@ -25,6 +33,7 @@ vi.mock("./offlineDb", () => {
         },
         count: () => Promise.resolve(rows.size),
       },
+      localSales: { update: () => Promise.resolve(1) },
     },
   };
 });
@@ -35,7 +44,9 @@ vi.mock("./api", async (importOriginal) => ({
 }));
 
 const { ApiError } = await import("./api");
-const { isTransientFailure, processSyncQueue, retryDelay } = await import("./syncEngine");
+const { isTransientFailure, processSyncQueue, retryDelay } = await import(
+  "./syncEngine"
+);
 const { useSyncStore } = await import("../stores/syncStore");
 
 function queue(id: string, minute: number, extra: Partial<PendingSale> = {}) {
@@ -53,7 +64,10 @@ describe("offline sync engine", () => {
     rows.clear();
     apiMock.mockReset();
     vi.stubGlobal("indexedDB", {});
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))),
+    );
     useSyncStore.setState({ status: "ONLINE", pending: 0 });
   });
 
@@ -63,7 +77,19 @@ describe("offline sync engine", () => {
     expect(isTransientFailure(new TypeError("Failed to fetch"))).toBe(true);
     expect(isTransientFailure(new ApiError("Down", 503))).toBe(true);
     expect(isTransientFailure(new ApiError("Slow down", 429))).toBe(true);
-    expect(isTransientFailure(new ApiError("Invalid", 422, "INVALID_SYNC_PAYLOAD"))).toBe(false);
+    expect(
+      isTransientFailure(
+        new ApiError("Still processing", 409, "SYNC_IN_PROGRESS"),
+      ),
+    ).toBe(true);
+    expect(
+      isTransientFailure(
+        new ApiError("Key reused", 409, "IDEMPOTENCY_KEY_REUSED"),
+      ),
+    ).toBe(false);
+    expect(
+      isTransientFailure(new ApiError("Invalid", 422, "INVALID_SYNC_PAYLOAD")),
+    ).toBe(false);
     expect([1, 2, 3].map(retryDelay)).toEqual([5_000, 10_000, 20_000]);
     expect(retryDelay(20)).toBe(300_000);
   });
@@ -77,25 +103,38 @@ describe("offline sync engine", () => {
     await processSyncQueue();
 
     const sent = apiMock.mock.calls.map(
-      ([, init]) => (JSON.parse(init?.body as string) as { client_transaction_id: string }).client_transaction_id,
+      ([, init]) =>
+        (JSON.parse(init?.body as string) as { client_transaction_id: string })
+          .client_transaction_id,
     );
     expect(sent).toEqual(["a", "b", "stale"]);
     expect(rows.size).toBe(0);
-    expect(useSyncStore.getState()).toMatchObject({ status: "SYNCED", pending: 0 });
+    expect(useSyncStore.getState()).toMatchObject({
+      status: "SYNCED",
+      pending: 0,
+    });
   });
 
   it("rejects permanent failures but keeps going", async () => {
     queue("bad", 1);
     queue("good", 2);
     apiMock
-      .mockRejectedValueOnce(new ApiError("Offline sale payload is invalid", 422))
+      .mockRejectedValueOnce(
+        new ApiError("Offline sale payload is invalid", 422),
+      )
       .mockResolvedValueOnce({ status: "SYNCED", conflict: false });
 
     await processSyncQueue();
 
-    expect(rows.get("bad")).toMatchObject({ status: "REJECTED", error: "Offline sale payload is invalid" });
+    expect(rows.get("bad")).toMatchObject({
+      status: "REJECTED",
+      error: "Offline sale payload is invalid",
+    });
     expect(rows.has("good")).toBe(false);
-    expect(useSyncStore.getState()).toMatchObject({ status: "ERROR", pending: 1 });
+    expect(useSyncStore.getState()).toMatchObject({
+      status: "ERROR",
+      pending: 1,
+    });
   });
 
   it("stops at a transient failure and schedules a retry", async () => {
@@ -107,7 +146,9 @@ describe("offline sync engine", () => {
 
     expect(apiMock).toHaveBeenCalledTimes(1);
     expect(rows.get("first")).toMatchObject({ status: "FAILED", attempts: 1 });
-    expect(Date.parse(rows.get("first")!.next_attempt_at!)).toBeGreaterThan(Date.now());
+    expect(Date.parse(rows.get("first")!.next_attempt_at!)).toBeGreaterThan(
+      Date.now(),
+    );
     expect(rows.get("second")?.status).toBe("PENDING");
 
     apiMock.mockClear();
@@ -117,7 +158,10 @@ describe("offline sync engine", () => {
 
   it("does not send anything when the health probe fails", async () => {
     queue("waiting", 1);
-    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))),
+    );
 
     await processSyncQueue();
 

@@ -13,6 +13,6 @@
     "strict": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["vite.config.ts", "src/styles/designSystem.test.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts", "e2e/**/*.ts", "src/styles/designSystem.test.ts"]
 }
 
