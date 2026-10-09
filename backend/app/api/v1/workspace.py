@@ -216,7 +216,7 @@ async def search(
                     id=str(sale.id),
                     title=sale.invoice_number,
                     subtitle=f"POS sale · ৳{sale.total}",
-                    to=f"/pos?sale={sale.id}",
+                    to=f"/sales?sale={sale.id}",
                 )
             )
     return hits

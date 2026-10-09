@@ -76,9 +76,33 @@
 .receipt-line { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; }
 .receipt-line span { display: grid; }
 .receipt-line small { margin-top: 2px; color: #4a5853; }
+.receipt-totals, .receipt-payment { display: grid; gap: var(--space-1); padding: var(--space-3) 0; border-top: 1px dashed #b4c1bb; }
+.receipt-totals > div, .receipt-payment > div { display: flex; justify-content: space-between; gap: var(--space-3); }
 .receipt-total { display: flex; justify-content: space-between; padding-top: var(--space-3); border-top: 1px dashed #b4c1bb; font-size: var(--text-body); font-weight: var(--weight-bold); }
 .receipt-total.small { margin-top: var(--space-2); padding-top: 0; border: 0; font-size: var(--text-caption); font-weight: var(--weight-regular); }
 .receipt-paper footer { margin-top: var(--space-6); color: #4a5853; line-height: 1.7; text-align: center; }
+
+/* Session 9: searchable sale ledger, exact reprints and manager-approved returns. */
+.sales-page .card-content { padding: var(--space-4); }
+.sale-detail { display: grid; justify-items: center; gap: var(--space-5); }
+.sale-detail .receipt-paper { box-shadow: none; border: 1px solid var(--border); }
+.sale-return-summary { width: min(100%, 420px); padding: var(--space-4); background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.sale-return-summary h3 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-3); font-size: var(--text-body-lg); }
+.sale-return-summary > div { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--border-subtle); font-size: var(--text-body); }
+.sale-return-summary p { margin: 0; color: var(--text-muted); font-size: var(--text-body); }
+.sale-drawer-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.refund-dialog { width: min(680px, calc(100vw - 32px)); }
+.refund-dialog form, .refund-lines { display: grid; gap: var(--space-4); }
+.refund-line { display: grid; grid-template-columns: minmax(180px, 1fr) 90px 150px; align-items: end; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.refund-line > span { display: grid; align-self: center; }
+.refund-line small { margin-top: 2px; color: var(--text-muted); font-size: var(--text-caption); }
+.refund-line .field { gap: var(--space-1); }
+
+@media (max-width: 600px) {
+  .refund-line { grid-template-columns: 1fr 1fr; }
+  .refund-line > span { grid-column: 1 / -1; }
+  .sale-drawer-actions { display: grid; grid-template-columns: 1fr 1fr; }
+}
 
 @media (max-width: 1080px) {
   .pos-page { grid-template-columns: minmax(0, 1fr) minmax(320px, 360px); }

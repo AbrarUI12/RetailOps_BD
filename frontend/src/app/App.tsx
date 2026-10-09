@@ -22,6 +22,7 @@ const OrdersPage = lazy(() => import("../routes/OrdersPage").then((m) => ({ defa
 const PurchasesPage = lazy(() => import("../routes/PurchasesPage").then((m) => ({ default: m.PurchasesPage })));
 const ReportsPage = lazy(() => import("../routes/ReportsPage").then((m) => ({ default: m.ReportsPage })));
 const ActivityPage = lazy(() => import("../routes/ActivityPage").then((m) => ({ default: m.ActivityPage })));
+const SalesPage = lazy(() => import("../routes/SalesPage").then((m) => ({ default: m.SalesPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +46,7 @@ export function App() {
                 <Route index element={<Navigate replace to="/dashboard" />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="pos" element={<RequirePermission permission="sale:create"><PosPage /></RequirePermission>} />
+                <Route path="sales" element={<RequirePermission permission="sale:create"><SalesPage /></RequirePermission>} />
                 <Route path="products" element={<RequirePermission permission="product:read"><ProductsPage /></RequirePermission>} />
                 <Route path="inventory" element={<RequirePermission permission="inventory:read"><InventoryPage /></RequirePermission>} />
                 <Route path="customers" element={<RequirePermission permission="customer:read"><CustomersPage /></RequirePermission>} />

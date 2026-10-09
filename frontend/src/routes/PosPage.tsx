@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CartPanel } from "../components/pos/CartPanel";
 import { CatalogPanel } from "../components/pos/CatalogPanel";
 import { CheckoutSheet, type CheckoutFocus } from "../components/pos/CheckoutSheet";
-import { Receipt, type SaleReceipt } from "../components/pos/Receipt";
+import { Receipt } from "../components/pos/Receipt";
 import { ShortcutsDialog } from "../components/pos/ShortcutsDialog";
 import { api } from "../lib/api";
 import { catalogStatus, clearCatalogIfForeign, refreshCatalog } from "../lib/catalog";
@@ -13,6 +13,7 @@ import { formatBDT } from "../lib/format";
 import { useOnline } from "../lib/hooks";
 import { queueSale } from "../lib/offlineDb";
 import { isTransientFailure } from "../lib/syncEngine";
+import type { SaleReceipt } from "../lib/sales";
 import { toast } from "../lib/toast";
 import { useAuthStore } from "../stores/authStore";
 import { cartSubtotal, useCartStore } from "../stores/cartStore";
@@ -97,14 +98,21 @@ export function PosPage() {
   }
 
   function receiptFromCart(payload: SalePayload, total: number): SaleReceipt {
+    const paymentMethod = typeof payload.payment_method === "string" ? payload.payment_method : "CASH";
     return {
       id: payload.client_transaction_id,
       invoice_number: `OFF-${payload.client_transaction_id.slice(0, 8).toUpperCase()}`,
+      subtotal: String(cartSubtotal(lines)),
+      discount: String(cartSubtotal(lines) - total),
       total: String(total),
+      payment_method: paymentMethod,
+      payments: Array.isArray(payload.payments) ? payload.payments as SaleReceipt["payments"] : [],
       amount_received: String(payload.amount_received),
       change_due: String(Math.max(0, payload.amount_received - total)),
       created_at: new Date().toISOString(),
-      items: lines.map((line) => ({ product_name: line.item.product_name, variant_name: line.item.variant_name, quantity: line.quantity, line_total: String(Number(line.item.price) * line.quantity) })),
+      cashier_name: user?.full_name,
+      customer_name: customer?.name,
+      items: lines.map((line) => ({ variant_id: line.item.variant_id, sku: line.item.sku, product_name: line.item.product_name, variant_name: line.item.variant_name, quantity: line.quantity, unit_price: line.item.price, line_total: String(Number(line.item.price) * line.quantity), returned_quantity: 0 })),
       inventory_conflict: false,
     };
   }

@@ -64,6 +64,7 @@ class SaleLineView(BaseModel):
     quantity: int
     unit_price: Decimal
     line_total: Decimal
+    returned_quantity: int = 0
 
 
 class PaymentView(BaseModel):
@@ -82,8 +83,41 @@ class SaleView(BaseModel):
     amount_received: Decimal
     change_due: Decimal
     created_at: datetime
+    cashier_name: str | None = None
+    customer_name: str | None = None
     synced_offline: bool = False
     items: list[SaleLineView]
     idempotent_replay: bool = False
     inventory_conflict: bool = False
     price_mismatch: bool = False
+
+
+class SaleListItem(BaseModel):
+    id: uuid.UUID
+    invoice_number: str
+    customer_name: str | None = None
+    cashier_name: str
+    item_count: int
+    total: Decimal
+    payment_method: PaymentMethod
+    returned_quantity: int = 0
+    synced_offline: bool
+    created_at: datetime
+
+
+class SalePage(BaseModel):
+    items: list[SaleListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class RefundSaleLine(BaseModel):
+    variant_id: uuid.UUID
+    quantity: int = Field(gt=0)
+    disposition: str = Field(default="SELLABLE", pattern="^(SELLABLE|DAMAGED|MISSING)$")
+
+
+class RefundSaleRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=200)
+    items: list[RefundSaleLine] = Field(min_length=1)

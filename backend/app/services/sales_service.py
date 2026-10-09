@@ -1,9 +1,10 @@
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +15,8 @@ from app.models.entities import (
     PaymentMethod,
     Product,
     ProductVariant,
+    Return,
+    ReturnItem,
     Sale,
     SaleItem,
     User,
@@ -24,6 +27,8 @@ from app.schemas.sales import (
     PaymentLine,
     PaymentView,
     SaleLineView,
+    SaleListItem,
+    SalePage,
     SaleView,
 )
 from app.services.audit_service import add_audit
@@ -77,13 +82,16 @@ class SalesService:
         replay = await self._replay(command.client_transaction_id)
         if replay:
             return SaleOutcome(replay)
-        if command.customer_id and not await self.session.scalar(
-            select(Customer.id).where(
-                Customer.id == command.customer_id,
-                Customer.organization_id == self.user.organization_id,
+        customer = None
+        if command.customer_id:
+            customer = await self.session.scalar(
+                select(Customer).where(
+                    Customer.id == command.customer_id,
+                    Customer.organization_id == self.user.organization_id,
+                )
             )
-        ):
-            raise AppError("CUSTOMER_NOT_FOUND", "Customer was not found", status_code=404)
+            if customer is None:
+                raise AppError("CUSTOMER_NOT_FOUND", "Customer was not found", status_code=404)
 
         variant_ids = [item.variant_id for item in command.items]
         query = (
@@ -210,7 +218,13 @@ class SalesService:
                 raise
             return SaleOutcome(replay)
         return SaleOutcome(
-            self._view(sale, inventory_conflict=bool(oversold), price_mismatch=bool(mismatches)),
+            self._view(
+                sale,
+                cashier_name=self.user.full_name,
+                customer_name=customer.name if customer else None,
+                inventory_conflict=bool(oversold),
+                price_mismatch=bool(mismatches),
+            ),
             mismatches,
             oversold,
         )
@@ -253,27 +267,132 @@ class SalesService:
                 )
         return rows, received
 
-    async def get(self, sale_id: uuid.UUID) -> SaleView:
-        sale = await self.session.scalar(
-            select(Sale).where(
-                Sale.id == sale_id,
-                Sale.organization_id == self.user.organization_id,
-            )
+    async def list(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> SalePage:
+        filters = [Sale.organization_id == self.user.organization_id]
+        query = (
+            select(Sale, User.full_name, Customer.name)
+            .join(User, User.id == Sale.cashier_id)
+            .outerjoin(Customer, Customer.id == Sale.customer_id)
         )
-        if sale is None:
+        if search:
+            term = f"%{search.strip()}%"
+            filters.append(or_(Sale.invoice_number.ilike(term), Customer.name.ilike(term)))
+        if date_from:
+            filters.append(Sale.created_at >= date_from)
+        if date_to:
+            filters.append(Sale.created_at < date_to)
+        total = int(
+            await self.session.scalar(
+                select(func.count(Sale.id))
+                .outerjoin(Customer, Customer.id == Sale.customer_id)
+                .where(*filters)
+            )
+            or 0
+        )
+        rows = (
+            await self.session.execute(
+                query.where(*filters)
+                .order_by(Sale.created_at.desc(), Sale.id.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        ).all()
+        returned = await self._returned_totals([sale.id for sale, _, _ in rows])
+        return SalePage(
+            items=[
+                SaleListItem(
+                    id=sale.id,
+                    invoice_number=sale.invoice_number,
+                    customer_name=customer_name,
+                    cashier_name=cashier_name,
+                    item_count=sum(item.quantity for item in sale.items),
+                    total=sale.total,
+                    payment_method=self._payment_method(sale),
+                    returned_quantity=returned.get(sale.id, 0),
+                    synced_offline=sale.synced_offline,
+                    created_at=sale.created_at,
+                )
+                for sale, cashier_name, customer_name in rows
+            ],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def get(self, sale_id: uuid.UUID) -> SaleView:
+        row = (
+            await self.session.execute(
+                select(Sale, User.full_name, Customer.name)
+                .join(User, User.id == Sale.cashier_id)
+                .outerjoin(Customer, Customer.id == Sale.customer_id)
+                .where(
+                    Sale.id == sale_id,
+                    Sale.organization_id == self.user.organization_id,
+                )
+            )
+        ).one_or_none()
+        if row is None:
             raise AppError("SALE_NOT_FOUND", "Sale was not found", status_code=404)
-        return self._view(sale)
+        sale, cashier_name, customer_name = row
+        returned = await self._returned_by_variant(sale.id)
+        return self._view(
+            sale,
+            cashier_name=cashier_name,
+            customer_name=customer_name,
+            returned_by_variant=returned,
+        )
+
+    async def _returned_by_variant(self, sale_id: uuid.UUID) -> dict[uuid.UUID, int]:
+        rows = await self.session.execute(
+            select(ReturnItem.variant_id, func.sum(ReturnItem.quantity))
+            .join(Return, Return.id == ReturnItem.return_id)
+            .where(
+                Return.organization_id == self.user.organization_id,
+                Return.sale_id == sale_id,
+            )
+            .group_by(ReturnItem.variant_id)
+        )
+        return {variant_id: int(quantity) for variant_id, quantity in rows.all()}
+
+    async def _returned_totals(self, sale_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, int]:
+        if not sale_ids:
+            return {}
+        rows = await self.session.execute(
+            select(Return.sale_id, func.sum(ReturnItem.quantity))
+            .join(ReturnItem, ReturnItem.return_id == Return.id)
+            .where(
+                Return.organization_id == self.user.organization_id,
+                Return.sale_id.in_(sale_ids),
+            )
+            .group_by(Return.sale_id)
+        )
+        return {sale_id: int(quantity) for sale_id, quantity in rows.all() if sale_id}
+
+    @staticmethod
+    def _payment_method(sale: Sale) -> PaymentMethod:
+        return sale.payments[0].method if len(sale.payments) == 1 else PaymentMethod.SPLIT
 
     def _view(
         self,
         sale: Sale,
         *,
+        cashier_name: str | None = None,
+        customer_name: str | None = None,
+        returned_by_variant: dict[uuid.UUID, int] | None = None,
         idempotent_replay: bool = False,
         inventory_conflict: bool = False,
         price_mismatch: bool = False,
     ) -> SaleView:
         payments = [PaymentView(method=p.method, amount=p.amount) for p in sale.payments]
-        method = payments[0].method if len(payments) == 1 else PaymentMethod.SPLIT
+        method = self._payment_method(sale)
         return SaleView(
             id=sale.id,
             invoice_number=sale.invoice_number,
@@ -285,6 +404,8 @@ class SalesService:
             amount_received=sale.amount_received,
             change_due=max(Decimal("0"), sale.amount_received - sale.total),
             created_at=sale.created_at,
+            cashier_name=cashier_name,
+            customer_name=customer_name,
             synced_offline=sale.synced_offline,
             items=[
                 SaleLineView(
@@ -295,6 +416,7 @@ class SalesService:
                     quantity=item.quantity,
                     unit_price=item.unit_price,
                     line_total=item.line_total,
+                    returned_quantity=(returned_by_variant or {}).get(item.variant_id, 0),
                 )
                 for item in sale.items
             ],
