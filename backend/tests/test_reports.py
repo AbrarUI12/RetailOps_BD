@@ -1,8 +1,8 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
-from app.models.entities import Sale
+from app.models.entities import Branch, Organization, Sale
 from app.utils.time import business_day_start, business_today
 from tests.conftest import DatabaseHarness
 from tests.test_operations_workflows import create_order, owner_headers, stocked_variant
@@ -98,3 +98,96 @@ async def test_report_rejects_inverted_range(db_client: DatabaseHarness) -> None
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_DATE_RANGE"
+
+
+async def test_dashboard_aggregates_the_full_branch_snapshot(db_client: DatabaseHarness) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 3)
+    sale = await client.post(
+        "/api/v1/pos/sales",
+        headers=headers,
+        json={
+            "items": [{"variant_id": variant_id, "quantity": 1}],
+            "payment_method": "CASH",
+            "amount_received": "1000.00",
+        },
+    )
+    order_id = await create_order(client, headers, variant_id)
+
+    response = await client.get(
+        "/api/v1/reports/dashboard",
+        headers=headers,
+        params={"start": business_today().isoformat(), "end": business_today().isoformat()},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["start"] == body["end"] == business_today().isoformat()
+    assert body["kpis"] == {
+        "revenue": "1000.00",
+        "sales": 1,
+        "orders": 1,
+        "gross_profit": "1000.00",
+        "average_order_value": "1000.00",
+        "pending_orders": 1,
+        "low_stock": 1,
+    }
+    assert len(body["revenue_series"]) == 6
+    assert sum(float(point["revenue"]) for point in body["revenue_series"]) == 1000
+    assert body["orders_by_source"] == {"FACEBOOK": 1}
+    assert body["top_products"][0]["quantity"] == 1
+    assert body["low_stock_items"][0]["available_quantity"] == 2
+    assert body["recent_sales"][0]["id"] == sale.json()["id"]
+    assert body["recent_orders"][0]["id"] == order_id
+    assert body["courier_success_rate"] is None
+    assert body["branches"][0]["name"] == "Test Branch"
+    week = await client.get(
+        "/api/v1/reports/dashboard",
+        headers=headers,
+        params={
+            "start": (business_today() - timedelta(days=6)).isoformat(),
+            "end": business_today().isoformat(),
+        },
+    )
+    assert len(week.json()["revenue_series"]) == 7
+    assert sum(float(point["revenue"]) for point in week.json()["revenue_series"]) == 1000
+
+
+async def test_dashboard_branch_selector_is_tenant_scoped(db_client: DatabaseHarness) -> None:
+    headers = await owner_headers(db_client.client)
+    async with db_client.sessions() as session:
+        organization = await session.scalar(
+            select(Organization).where(Organization.slug == "test-retail")
+        )
+        assert organization is not None
+        second = Branch(
+            organization_id=organization.id,
+            name="Second Branch",
+            code="SECOND",
+            address="Dhaka",
+        )
+        foreign_org = Organization(name="Foreign", slug="foreign-dashboard")
+        session.add_all([second, foreign_org])
+        await session.flush()
+        foreign = Branch(
+            organization_id=foreign_org.id,
+            name="Foreign Branch",
+            code="FOREIGN",
+        )
+        session.add(foreign)
+        await session.commit()
+        second_id, foreign_id = second.id, foreign.id
+
+    selected = await db_client.client.get(
+        "/api/v1/reports/dashboard", headers=headers, params={"branch_id": str(second_id)}
+    )
+    denied = await db_client.client.get(
+        "/api/v1/reports/dashboard", headers=headers, params={"branch_id": str(foreign_id)}
+    )
+    assert selected.status_code == 200
+    assert selected.json()["branch_id"] == str(second_id)
+    assert selected.json()["kpis"]["revenue"] == "0.00"
+    assert len(selected.json()["branches"]) == 2
+    assert denied.status_code == 404
+    assert denied.json()["error"]["code"] == "BRANCH_NOT_FOUND"

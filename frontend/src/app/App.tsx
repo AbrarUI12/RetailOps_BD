@@ -12,6 +12,8 @@ import { ForgotPasswordPage, ResetPasswordPage } from "../routes/PasswordRecover
 // Offline-critical screens ship in the entry bundle so they work before ever being visited online.
 import { PosPage } from "../routes/PosPage";
 import { SyncPage } from "../routes/SyncPage";
+import { can } from "../lib/permissions";
+import { useAuthStore } from "../stores/authStore";
 
 const DashboardPage = lazy(() => import("../routes/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const WorkspacePage = lazy(() => import("../routes/WorkspacePage").then((m) => ({ default: m.WorkspacePage })));
@@ -32,6 +34,12 @@ const queryClient = new QueryClient({
 
 const workspaceRoutes = ["settings"];
 
+function RoleHome() {
+  const user = useAuthStore((state) => state.user);
+  const target = can(user, "report:read") ? "/dashboard" : can(user, "sale:create") ? "/pos" : can(user, "order:read") ? "/orders" : "/products";
+  return <Navigate replace to={target} />;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -43,8 +51,8 @@ export function App() {
             <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
-                <Route index element={<Navigate replace to="/dashboard" />} />
-                <Route path="dashboard" element={<DashboardPage />} />
+                <Route index element={<RoleHome />} />
+                <Route path="dashboard" element={<RequirePermission permission="report:read"><DashboardPage /></RequirePermission>} />
                 <Route path="pos" element={<RequirePermission permission="sale:create"><PosPage /></RequirePermission>} />
                 <Route path="sales" element={<RequirePermission permission="sale:create"><SalesPage /></RequirePermission>} />
                 <Route path="products" element={<RequirePermission permission="product:read"><ProductsPage /></RequirePermission>} />

@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -6,9 +7,11 @@ from pydantic import BaseModel
 
 class DashboardKpis(BaseModel):
     revenue: Decimal
+    sales: int
     orders: int
     gross_profit: Decimal
     average_order_value: Decimal
+    pending_orders: int
     low_stock: int
 
 
@@ -18,15 +21,55 @@ class RevenuePoint(BaseModel):
 
 
 class RecentSale(BaseModel):
+    id: uuid.UUID
     invoice_number: str
     total: Decimal
     created_at: str
 
 
+class DashboardBranch(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class LowStockItem(BaseModel):
+    variant_id: uuid.UUID
+    product_name: str
+    variant_name: str
+    sku: str
+    available_quantity: int
+    reorder_level: int
+
+
+class RecentOrder(BaseModel):
+    id: uuid.UUID
+    order_number: str
+    source: str
+    status: str
+    total: Decimal
+    created_at: str
+
+
+class DashboardProduct(BaseModel):
+    product_name: str
+    variant_name: str
+    quantity: int
+    revenue: Decimal
+
+
 class DashboardReport(BaseModel):
+    start: date
+    end: date
+    branch_id: uuid.UUID
+    branches: list[DashboardBranch]
     kpis: DashboardKpis
     revenue_series: list[RevenuePoint]
+    orders_by_source: dict[str, int]
+    top_products: list[DashboardProduct]
+    low_stock_items: list[LowStockItem]
     recent_sales: list[RecentSale]
+    recent_orders: list[RecentOrder]
+    courier_success_rate: float | None
 
 
 class SalesSummary(BaseModel):

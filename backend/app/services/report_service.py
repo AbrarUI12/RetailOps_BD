@@ -1,37 +1,43 @@
 import csv
 import io
+import uuid
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.models.entities import (
+    Branch,
     InventoryBalance,
     Order,
     OrderStatus,
     PaymentMethod,
+    Product,
     ProductVariant,
     Sale,
-    SaleItem,
     Shipment,
     User,
 )
 from app.schemas.reports import (
     CourierSummary,
+    DashboardBranch,
     DashboardKpis,
+    DashboardProduct,
     DashboardReport,
     InventorySummary,
+    LowStockItem,
     OutcomeSummary,
     ProductPerformance,
+    RecentOrder,
     RecentSale,
     RevenuePoint,
     SalesSummary,
     SummaryReport,
 )
-from app.utils.time import BUSINESS_TZ, as_utc, business_day_start, business_today
+from app.utils.time import BUSINESS_TZ, as_utc, business_day_start
 
 MAX_REPORT_DAYS = 366
 RETURNED_STATUSES = {OrderStatus.RETURNED, OrderStatus.FAILED_DELIVERY}
@@ -47,74 +53,175 @@ class ReportService:
         self.session = session
         self.user = user
 
-    async def dashboard(self) -> DashboardReport:
-        start = business_day_start(business_today())
+    async def dashboard(
+        self, start_day: date, end_day: date, branch_id: uuid.UUID | None = None
+    ) -> DashboardReport:
+        start, until = self.window(start_day, end_day)
+        selected_branch = branch_id or self.user.branch_id
+        branches = list(
+            await self.session.scalars(
+                select(Branch)
+                .where(Branch.organization_id == self.user.organization_id)
+                .order_by(Branch.name)
+            )
+        )
+        if selected_branch not in {branch.id for branch in branches}:
+            raise AppError("BRANCH_NOT_FOUND", "Branch was not found", status_code=404)
         sales = list(
             await self.session.scalars(
                 select(Sale)
                 .where(
                     Sale.organization_id == self.user.organization_id,
-                    Sale.branch_id == self.user.branch_id,
+                    Sale.branch_id == selected_branch,
                     Sale.created_at >= start,
+                    Sale.created_at < until,
                 )
                 .order_by(Sale.created_at.desc())
             )
         )
-        revenue = sum((sale.total for sale in sales), Decimal("0.00"))
-        costs = await self.session.scalar(
-            select(func.coalesce(func.sum(SaleItem.unit_cost * SaleItem.quantity), 0))
-            .join(Sale, Sale.id == SaleItem.sale_id)
-            .where(
-                Sale.organization_id == self.user.organization_id,
-                Sale.branch_id == self.user.branch_id,
-                Sale.created_at >= start,
+        orders = list(
+            await self.session.scalars(
+                select(Order)
+                .where(
+                    Order.organization_id == self.user.organization_id,
+                    Order.branch_id == selected_branch,
+                    Order.created_at >= start,
+                    Order.created_at < until,
+                )
+                .order_by(Order.created_at.desc())
             )
         )
-        low_stock = (
-            await self.session.scalar(
-                select(func.count(InventoryBalance.id))
+        revenue = sum((sale.total for sale in sales), Decimal("0.00"))
+        costs = sum(
+            (item.unit_cost * item.quantity for sale in sales for item in sale.items),
+            Decimal("0.00"),
+        )
+        stock_rows = (
+            await self.session.execute(
+                select(InventoryBalance, ProductVariant, Product)
                 .join(ProductVariant, ProductVariant.id == InventoryBalance.variant_id)
+                .join(Product, Product.id == ProductVariant.product_id)
                 .where(
                     InventoryBalance.organization_id == self.user.organization_id,
-                    InventoryBalance.branch_id == self.user.branch_id,
+                    InventoryBalance.branch_id == selected_branch,
+                    Product.is_active.is_(True),
+                    ProductVariant.is_active.is_(True),
                     (InventoryBalance.physical_quantity - InventoryBalance.reserved_quantity)
                     <= ProductVariant.reorder_level,
                 )
+                .order_by(
+                    (InventoryBalance.physical_quantity - InventoryBalance.reserved_quantity),
+                    Product.name,
+                )
             )
-            or 0
-        )
+        ).all()
         hourly: list[RevenuePoint] = []
-        for offset in range(0, 12, 2):
-            point_start = start + timedelta(hours=offset + 9)
-            point_end = point_start + timedelta(hours=2)
-            point_total = sum(
-                (
-                    sale.total
-                    for sale in sales
-                    if point_start <= as_utc(sale.created_at) < point_end
-                ),
-                Decimal("0.00"),
-            )
-            label = point_start.astimezone(BUSINESS_TZ).strftime("%I %p").lstrip("0")
-            hourly.append(RevenuePoint(label=label, revenue=point_total))
+        if start_day == end_day:
+            for hour in range(0, 24, 4):
+                point_start = start + timedelta(hours=hour)
+                point_end = point_start + timedelta(hours=4)
+                point_total = sum(
+                    (
+                        sale.total
+                        for sale in sales
+                        if point_start <= as_utc(sale.created_at) < point_end
+                    ),
+                    Decimal("0.00"),
+                )
+                label = point_start.astimezone(BUSINESS_TZ).strftime("%I %p").lstrip("0")
+                hourly.append(RevenuePoint(label=label, revenue=point_total))
+        else:
+            day = start_day
+            while day <= end_day:
+                day_start = business_day_start(day)
+                day_end = day_start + timedelta(days=1)
+                hourly.append(
+                    RevenuePoint(
+                        label=day.strftime("%d %b").lstrip("0"),
+                        revenue=sum(
+                            (
+                                sale.total
+                                for sale in sales
+                                if day_start <= as_utc(sale.created_at) < day_end
+                            ),
+                            Decimal("0.00"),
+                        ),
+                    )
+                )
+                day += timedelta(days=1)
+        product_rows: dict[tuple[str, str], DashboardProduct] = {}
+        for sale in sales:
+            for item in sale.items:
+                key = (item.product_name, item.variant_name)
+                row = product_rows.setdefault(
+                    key,
+                    DashboardProduct(
+                        product_name=item.product_name,
+                        variant_name=item.variant_name,
+                        quantity=0,
+                        revenue=Decimal("0.00"),
+                    ),
+                )
+                row.quantity += item.quantity
+                row.revenue += item.line_total
+        terminal = [
+            order for order in orders if order.status in {OrderStatus.DELIVERED, *RETURNED_STATUSES}
+        ]
+        delivered = sum(order.status == OrderStatus.DELIVERED for order in terminal)
         count = len(sales)
         return DashboardReport(
+            start=start_day,
+            end=end_day,
+            branch_id=selected_branch,
+            branches=[DashboardBranch(id=branch.id, name=branch.name) for branch in branches],
             kpis=DashboardKpis(
                 revenue=revenue,
-                orders=count,
-                gross_profit=revenue - Decimal(str(costs)),
+                sales=count,
+                orders=len(orders),
+                gross_profit=revenue - costs,
                 average_order_value=revenue / count if count else Decimal("0.00"),
-                low_stock=low_stock,
+                pending_orders=sum(
+                    order.status == OrderStatus.PENDING_CONFIRMATION for order in orders
+                ),
+                low_stock=len(stock_rows),
             ),
             revenue_series=hourly,
+            orders_by_source=dict(Counter(order.source.value for order in orders)),
+            top_products=sorted(product_rows.values(), key=lambda row: row.revenue, reverse=True)[
+                :5
+            ],
+            low_stock_items=[
+                LowStockItem(
+                    variant_id=variant.id,
+                    product_name=product.name,
+                    variant_name=variant.name,
+                    sku=variant.sku,
+                    available_quantity=balance.available_quantity,
+                    reorder_level=variant.reorder_level,
+                )
+                for balance, variant, product in stock_rows[:6]
+            ],
             recent_sales=[
                 RecentSale(
+                    id=sale.id,
                     invoice_number=sale.invoice_number,
                     total=sale.total,
                     created_at=sale.created_at.isoformat(),
                 )
                 for sale in sales[:8]
             ],
+            recent_orders=[
+                RecentOrder(
+                    id=order.id,
+                    order_number=order.order_number,
+                    source=order.source.value,
+                    status=order.status.value,
+                    total=order.total,
+                    created_at=order.created_at.isoformat(),
+                )
+                for order in orders[:6]
+            ],
+            courier_success_rate=_rate(delivered, len(terminal)),
         )
 
     @staticmethod

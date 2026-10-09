@@ -30,7 +30,7 @@ export interface NavItem {
 }
 
 export const primaryNavigation: NavItem[] = [
-  { label: "Overview", to: "/dashboard", icon: LayoutDashboard, permission: "product:read" },
+  { label: "Overview", to: "/dashboard", icon: LayoutDashboard, permission: "report:read" },
   { label: "Point of sale", shortLabel: "POS", to: "/pos", icon: CircleDollarSign, permission: "sale:create" },
   { label: "Sales", to: "/sales", icon: ReceiptText, permission: "sale:create" },
   { label: "Orders", to: "/orders", icon: ClipboardList, permission: "order:read", badge: "orders_to_action" },

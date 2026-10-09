@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from typing import Annotated
 
@@ -16,8 +17,14 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 async def dashboard(
     session: SessionDep,
     user: Annotated[User, Depends(require_permission("report:read"))],
+    start: Annotated[date | None, Query(description="First Dhaka calendar day")] = None,
+    end: Annotated[date | None, Query(description="Last Dhaka calendar day, inclusive")] = None,
+    branch_id: uuid.UUID | None = None,
 ) -> DashboardReport:
-    return await ReportService(session, user).dashboard()
+    today = business_today()
+    last = end or today
+    first = start or last
+    return await ReportService(session, user).dashboard(first, last, branch_id)
 
 
 @router.get("/summary", response_model=SummaryReport)
