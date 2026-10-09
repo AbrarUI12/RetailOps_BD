@@ -34,6 +34,6 @@ The OpenAPI schema and interactive docs are served at `/docs`. Business resource
 | Shipments | `POST /orders/{id}/shipment`, `GET /orders/{id}/shipment`, `POST /orders/{id}/shipment/events` | courier updates drive order status |
 | Purchases | `GET/POST /suppliers`, `GET/POST /purchases`, `POST /purchases/{id}/receive` | receiving is idempotent |
 | Returns | `GET /returns`, `POST /returns` | References exactly one sale or one shipped order. Every line needs a `SELLABLE`, `DAMAGED` or `MISSING` disposition. Quantities are limited to what was sold and not yet returned. Returning a parcel closes the order as `RETURNED` |
-| Sync | `POST /sync/sales`, `GET /sync/conflicts` | see [offline-sync.md](offline-sync.md) |
+| Sync | `POST /sync/sales`, `GET /sync/conflicts`, `GET /sync/catalog-version`, `GET /sync/catalog`, `GET /sync/stock` | The POS compares the catalog version, downloads the full catalog only when it changed, and refreshes stock separately. See [offline-sync.md](offline-sync.md) |
 | Reports | `GET /reports/dashboard`, `GET /reports/summary?start&end`, `GET /reports/sales.csv?start&end` | ranges up to 366 days |
 | Activity | `GET /audit`, `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all` | |

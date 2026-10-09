@@ -1,6 +1,33 @@
 import Dexie, { type EntityTable } from "dexie";
 
-import type { Product } from "./api";
+/** A sellable variant as the POS stores it locally (mirrors the API's CatalogItem). */
+export interface CatalogItem {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  variant_name: string;
+  sku: string;
+  barcode: string | null;
+  price: string;
+  category_id: string | null;
+  category_name: string | null;
+  image_url: string | null;
+  attributes: Record<string, string>;
+  reorder_level: number;
+  available_quantity: number;
+  /** Lower-cased name, variant, SKU and barcode for fast local matching. */
+  search_text: string;
+}
+
+export interface CatalogCategory {
+  id: string;
+  name: string;
+}
+
+export interface MetaEntry {
+  key: string;
+  value: string;
+}
 
 export interface PendingSale {
   client_transaction_id: string;
@@ -14,7 +41,9 @@ export interface PendingSale {
 }
 
 class RetailDatabase extends Dexie {
-  products!: EntityTable<Product, "id">;
+  catalog!: EntityTable<CatalogItem, "variant_id">;
+  categories!: EntityTable<CatalogCategory, "id">;
+  meta!: EntityTable<MetaEntry, "key">;
   pendingSales!: EntityTable<PendingSale, "client_transaction_id">;
 
   constructor() {
@@ -23,17 +52,19 @@ class RetailDatabase extends Dexie {
       products: "id,name,sku,*variants.barcode",
       pendingSales: "client_transaction_id,status,created_at",
     });
+    // v2: a flat, variant-level catalog with real barcode/SKU indexes (plan §39-40). The old
+    // product cache is dropped; queued sales are untouched.
+    this.version(2).stores({
+      products: null,
+      catalog: "variant_id,barcode,sku,category_id,product_name",
+      categories: "id,name",
+      meta: "key",
+      pendingSales: "client_transaction_id,status,created_at",
+    });
   }
 }
 
 export const offlineDb = new RetailDatabase();
-
-export async function cacheProducts(products: Product[]) {
-  await offlineDb.transaction("rw", offlineDb.products, async () => {
-    await offlineDb.products.clear();
-    await offlineDb.products.bulkPut(products);
-  });
-}
 
 export async function queueSale(payload: Record<string, unknown>) {
   const client_transaction_id = String(payload.client_transaction_id);

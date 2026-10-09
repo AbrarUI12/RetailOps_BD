@@ -2,6 +2,16 @@
 
 The POS keeps selling when the network or the API is unavailable. PostgreSQL stays authoritative: an offline sale is optimistic until the server acknowledges it **exactly once**.
 
+## Product catalog on the device
+
+The POS never searches over the network (plan §40). On opening, on reconnecting and every 5 minutes it:
+
+1. calls `GET /sync/catalog-version`, a fingerprint of products, variants and categories;
+2. downloads `GET /sync/catalog` only if the version changed, or if the cached catalog belongs to another organization;
+3. otherwise refreshes just `GET /sync/stock`, available quantity per variant.
+
+The catalog lives in IndexedDB (Dexie `catalog`, indexed by barcode, SKU and category). Search, category filters and barcode lookup all read it, so the POS sells the same way online and offline. Local reads use React Query's `networkMode: "always"`, because by default it pauses every query while the browser is offline.
+
 ## Write path
 
 ```mermaid

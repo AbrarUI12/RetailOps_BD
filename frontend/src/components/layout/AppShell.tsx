@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Menu, Search, WifiOff } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { NavLink, useLocation, useOutlet } from "react-router-dom";
 
 import { api, type WorkspaceCounts } from "../../lib/api";
 import { initials } from "../../lib/format";
+import { useOnline } from "../../lib/hooks";
 import { t } from "../../lib/i18n";
 import { can } from "../../lib/permissions";
 import { useSyncEngine } from "../../lib/syncEngine";
@@ -62,17 +63,6 @@ function AnimatedOutlet() {
       </motion.div>
     </AnimatePresence>
   );
-}
-
-function useOnline() {
-  const [online, setOnline] = useState(navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    addEventListener("online", update);
-    addEventListener("offline", update);
-    return () => { removeEventListener("online", update); removeEventListener("offline", update); };
-  }, []);
-  return online;
 }
 
 export function AppShell() {

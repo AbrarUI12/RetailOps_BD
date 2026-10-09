@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import SessionDep, require_permission
 from app.models.entities import User
+from app.schemas.catalog import CatalogSnapshot, CatalogVersion, StockSnapshot
 from app.schemas.operations import SyncResult, SyncSaleInput
+from app.services.catalog_service import CatalogService
 from app.services.sync_service import SyncService
 
 router = APIRouter(prefix="/sync", tags=["offline synchronization"])
@@ -27,6 +29,27 @@ async def sync_conflicts(
     return await SyncService(session, user).conflicts()
 
 
-@router.get("/catalog-version")
-async def catalog_version() -> dict[str, str]:
-    return {"version": "1"}
+@router.get("/catalog-version", response_model=CatalogVersion)
+async def catalog_version(
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("product:read"))],
+) -> CatalogVersion:
+    """Cheap check the POS makes before deciding to download the catalog again."""
+    return await CatalogService(session, user).version()
+
+
+@router.get("/catalog", response_model=CatalogSnapshot)
+async def catalog(
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("product:read"))],
+) -> CatalogSnapshot:
+    """Every sellable variant, flattened for local search on the device."""
+    return await CatalogService(session, user).snapshot()
+
+
+@router.get("/stock", response_model=StockSnapshot)
+async def stock(
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("product:read"))],
+) -> StockSnapshot:
+    return await CatalogService(session, user).stock()
