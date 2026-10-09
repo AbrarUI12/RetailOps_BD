@@ -49,7 +49,13 @@ class SalesService:
 
     async def create(self, command: CreateSaleRequest) -> SaleView:
         """Online POS sale: current prices, active variants, never below available stock."""
-        return (await self._create(command, offline=False)).view
+        try:
+            return (await self._create(command, offline=False)).view
+        except Exception:
+            # The sale aggregate is all-or-nothing: a later stock failure must also
+            # discard the sale, its earlier line movements, payments and audit row.
+            await self.session.rollback()
+            raise
 
     async def create_offline(self, command: OfflineSalePayload) -> SaleOutcome:
         """Import a sale the device already completed: keep its time and the prices paid,
@@ -189,7 +195,7 @@ class SalesService:
             sale.id,
             new_data={
                 "invoice_number": sale.invoice_number,
-                "total": total,
+                "total": str(total),
                 "offline": offline,
                 "price_mismatches": mismatches or None,
             },

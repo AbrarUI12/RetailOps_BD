@@ -23,6 +23,7 @@ const item = {
 const json = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 
 let sales: Record<string, unknown>[] = [];
+let rejectSale = false;
 
 function stubServer() {
   sales = [];
@@ -32,6 +33,7 @@ function stubServer() {
     if (url.endsWith("/sync/stock")) return json({ as_of: "2026-10-09T06:00:00Z", available: { v1: 9 } });
     if (url.includes("/customers?search=")) return json([{ id: "c1", name: "Nusrat Jahan", phone: "+8801712345678" }]);
     if (url.endsWith("/pos/sales") && init?.method === "POST") {
+      if (rejectSale) return json({ error: { code: "INSUFFICIENT_STOCK", message: "Stock changed before checkout", details: {} } }, 409);
       const body = JSON.parse(init.body as string) as Record<string, unknown>;
       sales.push(body);
       return json({ id: "s1", invoice_number: "POS-20261009-0001", total: "1290.00", amount_received: String(body.amount_received), change_due: "210.00", created_at: "2026-10-09T06:00:00Z", items: [], inventory_conflict: false }, 201);
@@ -52,6 +54,7 @@ async function addWallet(user: ReturnType<typeof userEvent.setup>) {
 
 describe("POS checkout", () => {
   beforeEach(async () => {
+    rejectSale = false;
     await Promise.all([offlineDb.catalog.clear(), offlineDb.categories.clear(), offlineDb.meta.clear(), offlineDb.pendingSales.clear()]);
     useCartStore.getState().clear();
     useAuthStore.setState({ user: cashier, accessToken: "token", bootstrapped: true });
@@ -139,5 +142,24 @@ describe("POS checkout", () => {
 
     expect(screen.queryByRole("dialog", { name: "Checkout" })).not.toBeInTheDocument();
     expect(sales).toHaveLength(0);
+  });
+
+  it("keeps the cart open when the server rejects an online sale", async () => {
+    rejectSale = true;
+    const user = userEvent.setup();
+    renderPos();
+    await addWallet(user);
+    await user.keyboard("{F9}");
+    const sheet = await screen.findByRole("dialog", { name: "Checkout" });
+
+    await user.click(within(sheet).getByRole("button", { name: /Complete sale/ }));
+
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "Stock changed before checkout",
+    );
+    expect(within(sheet).getByRole("button", { name: /Complete sale/ })).toBeEnabled();
+    expect(useCartStore.getState().lines).toHaveLength(1);
+    expect(await offlineDb.pendingSales.count()).toBe(0);
+    expect(screen.queryByRole("heading", { name: "Payment successful" })).not.toBeInTheDocument();
   });
 });
