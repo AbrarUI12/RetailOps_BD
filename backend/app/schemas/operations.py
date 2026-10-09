@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.entities import OrderSource, OrderStatus
 from app.services.couriers import CourierStatus
@@ -48,7 +48,16 @@ class OrderCreate(BaseModel):
     area: str | None = Field(default=None, max_length=100)
     delivery_fee: Decimal = Field(default=Decimal("0"), ge=0)
     discount: Decimal = Field(default=Decimal("0"), ge=0)
-    items: list[OrderLineInput] = Field(min_length=1)
+    items: list[OrderLineInput] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_customer_and_items(self) -> "OrderCreate":
+        if bool(self.customer_id) == bool(self.customer):
+            raise ValueError("Provide exactly one of customer_id or customer")
+        variant_ids = [line.variant_id for line in self.items]
+        if len(variant_ids) != len(set(variant_ids)):
+            raise ValueError("Combine duplicate product variants into one order line")
+        return self
 
 
 class OrderItemView(BaseModel):

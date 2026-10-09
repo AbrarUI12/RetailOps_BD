@@ -30,6 +30,9 @@ try {
     for (const route of pages) {
       await page.goto(`${baseUrl}${route}`);
       await page.waitForLoadState("networkidle");
+      if (route === "/orders" && flags.orderEntry === "true") {
+        await page.getByRole("button", { name: "Create order" }).click();
+      }
       await page.waitForTimeout(400);
       const file = `${name}${route.replaceAll(/[^a-z0-9]+/gi, "-")}.png`;
       await page.screenshot({ path: path.join(outDir, file), fullPage: true });

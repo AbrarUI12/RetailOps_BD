@@ -58,7 +58,7 @@ class CustomerService:
         )
         return [CustomerView.model_validate(customer) for customer in customers]
 
-    async def create(self, command: CustomerCreate) -> CustomerView:
+    async def create(self, command: CustomerCreate, *, commit: bool = True) -> CustomerView:
         normalized = normalize_bd_phone(command.phone)
         customer = await self.session.scalar(
             select(Customer).where(
@@ -94,7 +94,8 @@ class CustomerService:
             customer.id,
             new_data={"name": customer.name, "phone": normalized},
         )
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
         return CustomerView.model_validate(customer)
 
     async def get(self, customer_id: uuid.UUID) -> CustomerView:

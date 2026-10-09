@@ -72,20 +72,6 @@ class OrderService:
         return [self._view(order) for order in orders]
 
     async def create(self, command: OrderCreate) -> OrderView:
-        customer_id = command.customer_id
-        if customer_id is None and command.customer:
-            customer = await CustomerService(self.session, self.user).create(command.customer)
-            customer_id = customer.id
-        if customer_id is None:
-            raise AppError("CUSTOMER_REQUIRED", "Select or create a customer", status_code=422)
-        customer = await self.session.scalar(
-            select(Customer).where(
-                Customer.id == customer_id,
-                Customer.organization_id == self.user.organization_id,
-            )
-        )
-        if customer is None:
-            raise AppError("CUSTOMER_NOT_FOUND", "Customer was not found", status_code=404)
         variant_ids = [line.variant_id for line in command.items]
         rows = (
             await self.session.execute(
@@ -107,6 +93,22 @@ class OrderService:
         )
         if command.discount > subtotal + command.delivery_fee:
             raise AppError("INVALID_DISCOUNT", "Discount exceeds order value", status_code=422)
+        customer_id = command.customer_id
+        if customer_id is None and command.customer:
+            created_customer = await CustomerService(self.session, self.user).create(
+                command.customer, commit=False
+            )
+            customer_id = created_customer.id
+        if customer_id is None:  # Kept defensive for non-HTTP callers; the schema also enforces it.
+            raise AppError("CUSTOMER_REQUIRED", "Select or create a customer", status_code=422)
+        customer = await self.session.scalar(
+            select(Customer).where(
+                Customer.id == customer_id,
+                Customer.organization_id == self.user.organization_id,
+            )
+        )
+        if customer is None:
+            raise AppError("CUSTOMER_NOT_FOUND", "Customer was not found", status_code=404)
         risk = await self._risk(customer, command.delivery_address)
         now = datetime.now(UTC)
         order = Order(
