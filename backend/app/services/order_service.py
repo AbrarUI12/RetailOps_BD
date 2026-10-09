@@ -39,7 +39,7 @@ from app.services.cod_risk import (
     calculate_cod_risk,
     recommendation_for,
 )
-from app.services.couriers import ORDER_STATUS_FOR, CourierStatus, get_provider
+from app.services.couriers import COURIER_STATUS_RANK, ORDER_STATUS_FOR, CourierStatus, get_provider
 from app.services.customer_service import CustomerService
 from app.services.inventory_service import InventoryService
 from app.utils.phone import normalize_bd_phone
@@ -318,20 +318,20 @@ class OrderService:
     async def create_shipment(self, order_id: uuid.UUID) -> ShipmentView:
         order = await self._get_model(order_id, lock=True)
         existing = await self.session.scalar(select(Shipment).where(Shipment.order_id == order.id))
-        if existing:
+        if existing and existing.status != CourierStatus.CANCELLED.value:
             return await self._shipment_view(existing, order)
         if order.status != OrderStatus.READY_FOR_SHIPMENT:
             raise AppError("ORDER_NOT_READY", "Order must be ready for shipment", status_code=409)
         provider = get_provider()
         booking = await provider.create_shipment(order)
-        shipment = Shipment(
-            organization_id=self.user.organization_id,
-            order_id=order.id,
-            provider=provider.name,
-            tracking_code=booking.tracking_code,
-            status=booking.status.value,
+        shipment = existing or Shipment(
+            organization_id=self.user.organization_id, order_id=order.id
         )
-        self.session.add(shipment)
+        shipment.provider = provider.name
+        shipment.tracking_code = booking.tracking_code
+        shipment.status = booking.status.value
+        if existing is None:
+            self.session.add(shipment)
         await self.session.flush()
         self._add_shipment_event(shipment, booking.status, f"Booked with {provider.name}")
         add_audit(self.session, self.user, "shipment.created", "shipment", shipment.id)
@@ -343,21 +343,86 @@ class OrderService:
         shipment = await self._shipment_for(order)
         return await self._shipment_view(shipment, order)
 
+    async def get_shipment_by_id(self, shipment_id: uuid.UUID) -> ShipmentView:
+        shipment, order = await self._shipment_and_order(shipment_id)
+        return await self._shipment_view(shipment, order)
+
+    async def refresh_shipment(self, shipment_id: uuid.UUID) -> ShipmentView:
+        shipment, order = await self._shipment_and_order(shipment_id, lock=True)
+        tracking = await get_provider(shipment.provider).track_shipment(shipment.tracking_code)
+        return await self._record_courier_status(
+            shipment, order, tracking.status, tracking.description
+        )
+
+    async def cancel_shipment(self, shipment_id: uuid.UUID) -> ShipmentView:
+        shipment, order = await self._shipment_and_order(shipment_id, lock=True)
+        if shipment.status == CourierStatus.CANCELLED.value:
+            return await self._shipment_view(shipment, order)
+        if shipment.status != CourierStatus.CREATED.value:
+            raise AppError(
+                "SHIPMENT_CANNOT_CANCEL",
+                "Only a shipment awaiting pickup can be cancelled",
+                status_code=409,
+            )
+        await get_provider(shipment.provider).cancel_shipment(shipment.tracking_code)
+        return await self._record_courier_status(
+            shipment, order, CourierStatus.CANCELLED, "Courier booking cancelled"
+        )
+
     async def record_courier_update(
         self, order_id: uuid.UUID, status: CourierStatus, description: str | None = None
     ) -> ShipmentView:
         """Apply a normalized courier status (webhook or tracking poll) to shipment and order."""
         order = await self._get_model(order_id, lock=True)
         shipment = await self._shipment_for(order)
+        return await self._record_courier_status(shipment, order, status, description)
+
+    async def _record_courier_status(
+        self,
+        shipment: Shipment,
+        order: Order,
+        status: CourierStatus,
+        description: str | None = None,
+    ) -> ShipmentView:
         if shipment.status == status.value:
             return await self._shipment_view(shipment, order)
+        current = CourierStatus(shipment.status)
+        # Courier webhooks and polling responses can arrive out of order. Never regress the
+        # normalized lifecycle after a newer event has already been accepted.
+        if COURIER_STATUS_RANK[status] <= COURIER_STATUS_RANK[current]:
+            return await self._shipment_view(shipment, order)
+        previous = shipment.status
         shipment.status = status.value
         self._add_shipment_event(shipment, status, description or status.value.replace("_", " "))
+        add_audit(
+            self.session,
+            self.user,
+            "shipment.status_changed",
+            "shipment",
+            shipment.id,
+            old_data={"status": previous},
+            new_data={"status": status.value},
+        )
         target = ORDER_STATUS_FOR.get(status)
         if target and target in LEGAL_TRANSITIONS[order.status]:
             await self._apply_transition(order, target, f"Courier reported {status.value}")
         await self.session.commit()
         return await self._shipment_view(shipment, order)
+
+    async def _shipment_and_order(
+        self, shipment_id: uuid.UUID, *, lock: bool = False
+    ) -> tuple[Shipment, Order]:
+        query = select(Shipment).where(
+            Shipment.id == shipment_id,
+            Shipment.organization_id == self.user.organization_id,
+        )
+        if lock:
+            query = query.with_for_update()
+        shipment = await self.session.scalar(query)
+        if shipment is None:
+            raise AppError("SHIPMENT_NOT_FOUND", "Shipment was not found", status_code=404)
+        order = await self._get_model(shipment.order_id, lock=lock)
+        return shipment, order
 
     async def _shipment_for(self, order: Order) -> Shipment:
         shipment = await self.session.scalar(

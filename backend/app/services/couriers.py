@@ -18,6 +18,16 @@ class CourierStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+COURIER_STATUS_RANK: dict[CourierStatus, int] = {
+    CourierStatus.CREATED: 0,
+    CourierStatus.PICKED_UP: 1,
+    CourierStatus.IN_TRANSIT: 2,
+    CourierStatus.DELIVERED: 3,
+    CourierStatus.RETURNED: 3,
+    CourierStatus.CANCELLED: 3,
+}
+
+
 # Order status implied by a courier update; statuses absent here only add to the timeline.
 ORDER_STATUS_FOR: dict[CourierStatus, OrderStatus] = {
     CourierStatus.PICKED_UP: OrderStatus.SHIPPED,
@@ -32,10 +42,18 @@ class CourierBooking:
     status: CourierStatus
 
 
+@dataclass(frozen=True)
+class CourierTracking:
+    status: CourierStatus
+    description: str
+
+
 class CourierProvider(Protocol):
     name: str
 
     async def create_shipment(self, order: Order) -> CourierBooking: ...
+
+    async def track_shipment(self, tracking_code: str) -> CourierTracking: ...
 
     async def cancel_shipment(self, tracking_code: str) -> None: ...
 
@@ -45,13 +63,22 @@ class MockCourierProvider:
 
     name = "MOCK_COURIER"
 
+    def __init__(self) -> None:
+        self._statuses: dict[str, CourierStatus] = {}
+
     async def create_shipment(self, order: Order) -> CourierBooking:
-        return CourierBooking(
+        booking = CourierBooking(
             tracking_code=f"RBD{uuid.uuid4().hex[:10].upper()}", status=CourierStatus.CREATED
         )
+        self._statuses[booking.tracking_code] = booking.status
+        return booking
+
+    async def track_shipment(self, tracking_code: str) -> CourierTracking:
+        status = self._statuses.get(tracking_code, CourierStatus.CREATED)
+        return CourierTracking(status=status, description=f"Mock courier reported {status.value}")
 
     async def cancel_shipment(self, tracking_code: str) -> None:
-        return None
+        self._statuses[tracking_code] = CourierStatus.CANCELLED
 
 
 PROVIDERS: dict[str, CourierProvider] = {MockCourierProvider.name: MockCourierProvider()}

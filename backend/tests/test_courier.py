@@ -104,6 +104,10 @@ async def test_repeated_courier_update_is_recorded_once(db_client: DatabaseHarne
     assert len(events) == 2
     assert (await stock_of(client, headers, variant_id))["physical"] == 8
 
+    stale = await courier_update(client, headers, order_id, "CREATED")
+    assert stale["status"] == "PICKED_UP"
+    assert len(stale["events"]) == 2
+
 
 async def test_shipment_requires_ready_order(db_client: DatabaseHarness) -> None:
     client = db_client.client
@@ -116,3 +120,41 @@ async def test_shipment_requires_ready_order(db_client: DatabaseHarness) -> None
 
     assert response.status_code == 409
     assert missing.status_code == 404
+
+
+async def test_canonical_shipment_endpoints_refresh_cancel_and_rebook(
+    db_client: DatabaseHarness,
+) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 10)
+    order_id = await ready_order_with_shipment(client, headers, variant_id)
+    current = (await client.get(f"/api/v1/orders/{order_id}/shipment", headers=headers)).json()
+
+    detail = await client.get(f"/api/v1/shipments/{current['id']}", headers=headers)
+    refreshed = await client.post(f"/api/v1/shipments/{current['id']}/refresh", headers=headers)
+    cancelled = await client.post(f"/api/v1/shipments/{current['id']}/cancel", headers=headers)
+    rebooked = await client.post(f"/api/v1/orders/{order_id}/shipment", headers=headers)
+
+    assert detail.status_code == refreshed.status_code == cancelled.status_code == 200
+    assert cancelled.json()["status"] == "CANCELLED"
+    assert [event["status"] for event in cancelled.json()["events"]] == [
+        "CREATED",
+        "CANCELLED",
+    ]
+    assert rebooked.status_code == 200
+    assert rebooked.json()["status"] == "CREATED"
+    assert rebooked.json()["tracking_code"] != current["tracking_code"]
+
+
+async def test_picked_up_shipment_cannot_be_cancelled(db_client: DatabaseHarness) -> None:
+    client = db_client.client
+    headers = await owner_headers(client)
+    variant_id = await stocked_variant(client, headers, 10)
+    order_id = await ready_order_with_shipment(client, headers, variant_id)
+    picked = await courier_update(client, headers, order_id, "PICKED_UP")
+
+    response = await client.post(f"/api/v1/shipments/{picked['id']}/cancel", headers=headers)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "SHIPMENT_CANNOT_CANCEL"
