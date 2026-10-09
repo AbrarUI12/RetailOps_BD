@@ -92,6 +92,38 @@ class OrderView(BaseModel):
     created_at: datetime
 
 
+class OrderCustomerView(BaseModel):
+    id: uuid.UUID
+    name: str
+    normalized_phone: str
+    phone_verified: bool
+
+
+class OrderStatusEventView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    from_status: str | None
+    to_status: str
+    note: str | None
+    created_at: datetime
+
+
+class OrderReservationView(BaseModel):
+    variant_id: uuid.UUID
+    product_name: str
+    quantity: int
+    active: bool
+
+
+class OrderDetailView(BaseModel):
+    order: OrderView
+    customer: OrderCustomerView
+    events: list[OrderStatusEventView]
+    reservations: list[OrderReservationView]
+    shipment_booked: bool
+
+
 class TransitionInput(BaseModel):
     status: OrderStatus
     note: str | None = Field(default=None, max_length=500)

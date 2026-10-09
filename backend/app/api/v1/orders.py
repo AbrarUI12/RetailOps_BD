@@ -1,13 +1,15 @@
 import uuid
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import SessionDep, ensure_permission, require_permission
-from app.models.entities import OrderStatus, User
+from app.models.entities import OrderSource, OrderStatus, User
 from app.schemas.operations import (
     CourierUpdateInput,
     OrderCreate,
+    OrderDetailView,
     OrderView,
     ShipmentView,
     TransitionInput,
@@ -27,8 +29,21 @@ TRANSITION_PERMISSIONS = {
 async def list_orders(
     session: SessionDep,
     user: Annotated[User, Depends(require_permission("order:read"))],
+    search: Annotated[str | None, Query(max_length=100)] = None,
+    order_status: Annotated[OrderStatus | None, Query(alias="status")] = None,
+    source: OrderSource | None = None,
+    risk: Literal["LOW", "MEDIUM", "HIGH", "VERY_HIGH"] | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
 ) -> list[OrderView]:
-    return await OrderService(session, user).list_orders()
+    return await OrderService(session, user).list_orders(
+        search=search,
+        status=order_status,
+        source=source,
+        risk=risk,
+        created_from=created_from,
+        created_to=created_to,
+    )
 
 
 @router.post("", response_model=OrderView, status_code=status.HTTP_201_CREATED)
@@ -38,6 +53,15 @@ async def create_order(
     user: Annotated[User, Depends(require_permission("order:write"))],
 ) -> OrderView:
     return await OrderService(session, user).create(command)
+
+
+@router.get("/{order_id}", response_model=OrderDetailView)
+async def get_order(
+    order_id: uuid.UUID,
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("order:read"))],
+) -> OrderDetailView:
+    return await OrderService(session, user).detail(order_id)
 
 
 @router.post("/{order_id}/transition", response_model=OrderView)
@@ -68,6 +92,15 @@ async def cancel_order(
     user: Annotated[User, Depends(require_permission("order:cancel"))],
 ) -> OrderView:
     return await OrderService(session, user).transition(order_id, OrderStatus.CANCELLED)
+
+
+@router.post("/{order_id}/pack", response_model=OrderView)
+async def pack_order(
+    order_id: uuid.UUID,
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("order:write"))],
+) -> OrderView:
+    return await OrderService(session, user).transition(order_id, OrderStatus.PACKING)
 
 
 @router.post("/{order_id}/shipment", response_model=ShipmentView)

@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../lib/api";
+import { useAuthStore } from "../stores/authStore";
 import { expectNoAxeViolations } from "../test/axe";
 import { OrdersPage } from "./OrdersPage";
 
@@ -16,6 +17,8 @@ const productPage = { items: [{ id: "p1", name: "Premium Panjabi", sku: "PP", de
 const customer = { id: "c1", name: "Rahim Ahmed", normalized_phone: "+8801712345678" };
 const profile = { metrics: { successful_deliveries: 7, delivery_outcomes: 8, cod_risk: { score: 10, level: "LOW", reasons: ["Repeat customer"], recommendation: "Proceed normally" } }, addresses: [{ address: "House 12, Road 4, Dhanmondi", area: "Dhanmondi" }] };
 const result = { id: "o1", order_number: "ORD-20261009-ABC123", total: "1130.00", risk: { score: 10, level: "LOW", reasons: ["Repeat customer"], recommendation: "Proceed normally" } };
+const order = { ...result, customer_id: "c1", source: "FACEBOOK", status: "PENDING_CONFIRMATION", subtotal: "1200.00", delivery_fee: "80.00", discount: "150.00", delivery_address: "House 12, Road 4, Dhanmondi", area: "Dhanmondi", created_at: "2026-10-09T06:00:00Z", items: [{ variant_id: "v1", product_name: "Premium Panjabi", quantity: 1, unit_price: "1200.00", line_total: "1200.00" }] };
+const detail = { order, customer: { id: "c1", name: "Rahim Ahmed", normalized_phone: "+8801712345678", phone_verified: true }, events: [{ id: "e1", from_status: null, to_status: "PENDING_CONFIRMATION", note: "Order created", created_at: "2026-10-09T06:00:00Z" }], reservations: [], shipment_booked: false };
 
 function requestBody(init: RequestInit) {
   if (typeof init.body !== "string") throw new Error("Expected a JSON request body");
@@ -35,6 +38,7 @@ describe("fast manual order entry", () => {
       if (path.includes("/products")) return Promise.resolve(productPage);
       return Promise.resolve([]);
     });
+    useAuthStore.setState({ user: { id: "owner", organization_id: "org", organization_name: "RetailOps", branch_id: "branch", branch_name: "Dhanmondi", email: "owner@example.com", full_name: "Owner", role: "OWNER", permissions: ["order:read", "order:write", "order:confirm", "order:cancel"] } });
   });
 
   it("reuses a customer immediately and submits source, lines and totals", async () => {
@@ -85,5 +89,24 @@ describe("fast manual order entry", () => {
       const body = requestBody(init) as { customer?: { name: string; phone: string } };
       return body.customer?.name === "New Customer" && body.customer.phone === "01912345678";
     })).toBe(true));
+  });
+
+  it("filters the queue and opens status history with guarded actions", async () => {
+    apiMock.mockImplementation((path, init) => {
+      if (path === "/api/v1/orders/o1") return Promise.resolve(detail);
+      if (path === "/api/v1/orders/o1/confirm" && init?.method === "POST") return Promise.resolve({ ...order, status: "CONFIRMED" });
+      if (path.startsWith("/api/v1/orders")) return Promise.resolve([order]);
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    const { container } = renderPage();
+    await user.click(await screen.findByRole("button", { name: "Needs confirmation" }));
+    await waitFor(() => expect(apiMock.mock.calls.some(([path]) => path.includes("status=PENDING_CONFIRMATION"))).toBe(true));
+    await user.click((await screen.findAllByRole("button", { name: "View ORD-20261009-ABC123" }))[0]);
+    expect(await screen.findByText("Status timeline")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Rahim Ahmed/ })).toHaveAttribute("href", "/customers?customer=c1");
+    await expectNoAxeViolations(container);
+    await user.click(screen.getByRole("button", { name: "Confirm & reserve" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/v1/orders/o1/confirm", expect.objectContaining({ method: "POST" })));
   });
 });

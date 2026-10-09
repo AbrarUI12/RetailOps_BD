@@ -1,8 +1,8 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
@@ -11,6 +11,7 @@ from app.models.entities import (
     InventoryReservation,
     Order,
     OrderItem,
+    OrderSource,
     OrderStatus,
     OrderStatusEvent,
     Product,
@@ -21,7 +22,11 @@ from app.models.entities import (
 )
 from app.schemas.operations import (
     OrderCreate,
+    OrderCustomerView,
+    OrderDetailView,
     OrderItemView,
+    OrderReservationView,
+    OrderStatusEventView,
     OrderView,
     RiskView,
     ShipmentEventView,
@@ -37,6 +42,8 @@ from app.services.cod_risk import (
 from app.services.couriers import ORDER_STATUS_FOR, CourierStatus, get_provider
 from app.services.customer_service import CustomerService
 from app.services.inventory_service import InventoryService
+from app.utils.phone import normalize_bd_phone
+from app.utils.time import business_day_start
 
 LEGAL_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
     OrderStatus.DRAFT: {OrderStatus.PENDING_CONFIRMATION, OrderStatus.CANCELLED},
@@ -62,14 +69,107 @@ class OrderService:
         self.session = session
         self.user = user
 
-    async def list_orders(self) -> list[OrderView]:
-        orders = await self.session.scalars(
+    async def list_orders(
+        self,
+        *,
+        search: str | None = None,
+        status: OrderStatus | None = None,
+        source: OrderSource | None = None,
+        risk: str | None = None,
+        created_from: date | None = None,
+        created_to: date | None = None,
+    ) -> list[OrderView]:
+        query = (
             select(Order)
-            .where(Order.organization_id == self.user.organization_id)
-            .order_by(Order.created_at.desc())
-            .limit(200)
+            .join(Customer)
+            .where(
+                Order.organization_id == self.user.organization_id,
+                Customer.organization_id == self.user.organization_id,
+            )
         )
+        if search:
+            normalized = None
+            try:
+                normalized = normalize_bd_phone(search)
+            except AppError:
+                pass
+            query = query.where(
+                or_(
+                    Order.order_number.ilike(f"%{search}%"),
+                    Customer.name.ilike(f"%{search}%"),
+                    Customer.normalized_phone == normalized,
+                )
+            )
+        if status:
+            query = query.where(Order.status == status)
+        if source:
+            query = query.where(Order.source == source)
+        if risk:
+            query = query.where(Order.cod_risk_level == risk)
+        if created_from:
+            query = query.where(Order.created_at >= business_day_start(created_from))
+        if created_to:
+            query = query.where(
+                Order.created_at < business_day_start(created_to + timedelta(days=1))
+            )
+        orders = await self.session.scalars(query.order_by(Order.created_at.desc()).limit(200))
         return [self._view(order) for order in orders]
+
+    async def detail(self, order_id: uuid.UUID) -> OrderDetailView:
+        order = await self._get_model(order_id)
+        customer = await self.session.scalar(
+            select(Customer).where(
+                Customer.id == order.customer_id,
+                Customer.organization_id == self.user.organization_id,
+            )
+        )
+        if customer is None:
+            raise AppError("CUSTOMER_NOT_FOUND", "Customer was not found", status_code=404)
+        events = list(
+            await self.session.scalars(
+                select(OrderStatusEvent)
+                .where(
+                    OrderStatusEvent.organization_id == self.user.organization_id,
+                    OrderStatusEvent.order_id == order.id,
+                )
+                .order_by(OrderStatusEvent.created_at)
+            )
+        )
+        reservations = list(
+            await self.session.scalars(
+                select(InventoryReservation).where(
+                    InventoryReservation.organization_id == self.user.organization_id,
+                    InventoryReservation.order_id == order.id,
+                )
+            )
+        )
+        names = {item.variant_id: item.product_name for item in order.items}
+        shipment_booked = await self.session.scalar(
+            select(Shipment.id).where(
+                Shipment.organization_id == self.user.organization_id,
+                Shipment.order_id == order.id,
+            )
+        )
+        return OrderDetailView(
+            order=self._view(order),
+            customer=OrderCustomerView(
+                id=customer.id,
+                name=customer.name,
+                normalized_phone=customer.normalized_phone,
+                phone_verified=customer.phone_verified,
+            ),
+            events=[OrderStatusEventView.model_validate(event) for event in events],
+            reservations=[
+                OrderReservationView(
+                    variant_id=reservation.variant_id,
+                    product_name=names.get(reservation.variant_id, "Order item"),
+                    quantity=reservation.quantity,
+                    active=reservation.active,
+                )
+                for reservation in reservations
+            ],
+            shipment_booked=shipment_booked is not None,
+        )
 
     async def create(self, command: OrderCreate) -> OrderView:
         variant_ids = [line.variant_id for line in command.items]
@@ -181,6 +281,18 @@ class OrderService:
         if target == OrderStatus.CANCELLED:
             await self._release(order)
         if target == OrderStatus.SHIPPED:
+            shipment = await self.session.scalar(
+                select(Shipment.id).where(
+                    Shipment.organization_id == self.user.organization_id,
+                    Shipment.order_id == order.id,
+                )
+            )
+            if shipment is None:
+                raise AppError(
+                    "SHIPMENT_REQUIRED",
+                    "Book a courier shipment before marking the order shipped",
+                    status_code=409,
+                )
             await self._consume(order)
         order.status = target
         self.session.add(
@@ -321,6 +433,7 @@ class OrderService:
         return list(
             await self.session.scalars(
                 select(InventoryReservation).where(
+                    InventoryReservation.organization_id == self.user.organization_id,
                     InventoryReservation.order_id == order.id,
                     InventoryReservation.active.is_(True),
                 )
