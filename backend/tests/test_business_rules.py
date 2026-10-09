@@ -11,7 +11,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.services.cod_risk import RiskFacts, calculate_cod_risk
+from app.services.cod_risk import RiskFacts, calculate_cod_risk, recommendation_for, risk_level
 from app.utils.phone import normalize_bd_phone
 from tests.conftest import DatabaseHarness
 
@@ -58,6 +58,97 @@ def test_loyal_customer_receives_low_risk_score() -> None:
     )
     assert result.score == 0
     assert result.level == "LOW"
+
+
+@pytest.mark.parametrize(
+    ("facts", "points", "reason"),
+    [
+        (
+            RiskFacts(successful_deliveries=1, returns=2, phone_verified=True),
+            30,
+            "Return ratio is above 50%",
+        ),
+        (RiskFacts(successful_deliveries=0, phone_verified=True), 20, "No successful deliveries"),
+        (RiskFacts(successful_deliveries=1, phone_verified=False), 15, "Phone is unverified"),
+        (
+            RiskFacts(successful_deliveries=1, phone_verified=True, duplicate_recent_order=True),
+            15,
+            "Similar order placed within 30 minutes",
+        ),
+        (
+            RiskFacts(successful_deliveries=1, phone_verified=True, complete_address=False),
+            10,
+            "Delivery address is incomplete",
+        ),
+        (
+            RiskFacts(successful_deliveries=1, phone_verified=True, shipped_cancellations=1),
+            10,
+            "Previous cancellation after shipment",
+        ),
+    ],
+)
+def test_each_cod_risk_penalty_is_independently_explainable(
+    facts: RiskFacts, points: int, reason: str
+) -> None:
+    result = calculate_cod_risk(facts)
+    assert result.score == points
+    assert result.reasons == [reason]
+
+
+def test_return_ratio_rule_is_strictly_above_half() -> None:
+    result = calculate_cod_risk(RiskFacts(successful_deliveries=2, returns=2, phone_verified=True))
+    assert result.score == 0
+    assert "Return ratio is above 50%" not in result.reasons
+
+
+def test_positive_history_reasons_and_clamping() -> None:
+    loyal = calculate_cod_risk(
+        RiskFacts(successful_deliveries=6, phone_verified=True, prior_orders=6)
+    )
+    maximum = calculate_cod_risk(
+        RiskFacts(
+            returns=2,
+            duplicate_recent_order=True,
+            complete_address=False,
+            shipped_cancellations=1,
+        )
+    )
+    assert loyal.score == 0
+    assert loyal.reasons == ["More than five successful deliveries", "Repeat customer"]
+    assert maximum.score == 100
+    assert maximum.level == "VERY_HIGH"
+
+
+@pytest.mark.parametrize(
+    ("score", "level"),
+    [
+        (0, "LOW"),
+        (24, "LOW"),
+        (25, "MEDIUM"),
+        (49, "MEDIUM"),
+        (50, "HIGH"),
+        (74, "HIGH"),
+        (75, "VERY_HIGH"),
+        (100, "VERY_HIGH"),
+    ],
+)
+def test_cod_risk_level_boundaries(score: int, level: str) -> None:
+    assert risk_level(score) == level
+
+
+@pytest.mark.parametrize(
+    ("level", "recommendation"),
+    [
+        ("LOW", "Proceed normally"),
+        ("MEDIUM", "Verify address before dispatch"),
+        ("HIGH", "Call customer before dispatch"),
+        ("VERY_HIGH", "Require advance payment or manager approval"),
+    ],
+)
+def test_every_risk_level_has_an_operational_recommendation(
+    level: str, recommendation: str
+) -> None:
+    assert recommendation_for(level) == recommendation
 
 
 def test_password_hash_and_access_token_round_trip() -> None:

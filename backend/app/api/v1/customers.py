@@ -12,7 +12,7 @@ from app.schemas.customers import (
     CustomerPurchaseView,
     CustomerUpdate,
 )
-from app.schemas.operations import CustomerCreate, CustomerView
+from app.schemas.operations import CustomerCreate, CustomerView, RiskView
 from app.services.customer_service import CustomerService
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -80,6 +80,15 @@ async def get_customer_orders(
     user: Annotated[User, Depends(require_permission("customer:read"))],
 ) -> list[CustomerPurchaseView]:
     return await CustomerService(session, user).orders(customer_id)
+
+
+@router.get("/{customer_id}/risk", response_model=RiskView)
+async def get_customer_risk(
+    customer_id: uuid.UUID,
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("customer:read"))],
+) -> RiskView:
+    return await CustomerService(session, user).risk(customer_id)
 
 
 @router.post(

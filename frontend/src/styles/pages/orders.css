@@ -56,6 +56,15 @@
 .order-detail-sheet { width: min(680px, calc(100vw - 24px)); max-width: 680px; overflow-y: auto; }
 .order-detail { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
 .detail-badges { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.cod-risk-card { display: grid; grid-template-columns: 44px 1fr; gap: var(--space-3); padding: var(--space-4); color: var(--brand-strong); background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent); border-radius: var(--radius-md); }
+.cod-risk-card.risk-medium { color: var(--warning-strong); background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 28%, transparent); }
+.cod-risk-card.risk-high, .cod-risk-card.risk-very_high { color: var(--danger-strong); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 26%, transparent); }
+.cod-risk-icon { display: grid; width: 44px; height: 44px; place-items: center; color: inherit; background: color-mix(in srgb, currentColor 10%, transparent); border-radius: var(--radius-sm); }
+.cod-risk-card p { margin: 0; color: inherit; font-size: var(--text-caption); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: .06em; }
+.cod-risk-card h3 { margin: 2px 0 var(--space-2); color: var(--text); font-size: var(--text-title); }
+.cod-risk-card > div > strong { color: var(--text); }
+.cod-risk-card ul { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0; padding-left: var(--space-5); color: var(--text-muted); font-size: var(--text-caption); }
+.cod-risk-card small { display: block; margin-top: var(--space-2); color: var(--text-muted); }
 .order-detail-metrics { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--space-2); }
 .order-detail-metrics > div { display: grid; gap: 2px; padding: var(--space-3); background: var(--surface-subtle); border-radius: var(--radius-sm); }
 .order-detail-metrics span { color: var(--text-muted); font-size: var(--text-caption); }

@@ -105,6 +105,9 @@ describe("fast manual order entry", () => {
     await user.click((await screen.findAllByRole("button", { name: "View ORD-20261009-ABC123" }))[0]);
     expect(await screen.findByText("Status timeline")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Rahim Ahmed/ })).toHaveAttribute("href", "/customers?customer=c1");
+    expect(screen.getByRole("heading", { name: "Low — 10/100" })).toBeInTheDocument();
+    expect(screen.getByText("Repeat customer")).toBeInTheDocument();
+    expect(screen.getByText("Proceed normally")).toBeInTheDocument();
     await expectNoAxeViolations(container);
     await user.click(screen.getByRole("button", { name: "Confirm & reserve" }));
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/v1/orders/o1/confirm", expect.objectContaining({ method: "POST" })));

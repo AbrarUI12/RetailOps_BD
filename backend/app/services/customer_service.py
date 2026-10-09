@@ -28,7 +28,7 @@ from app.schemas.customers import (
     CustomerReturnView,
     CustomerUpdate,
 )
-from app.schemas.operations import CustomerCreate, CustomerView
+from app.schemas.operations import CustomerCreate, CustomerView, RiskView
 from app.services.audit_service import add_audit
 from app.services.cod_risk import RiskFacts, calculate_cod_risk
 from app.utils.phone import normalize_bd_phone
@@ -375,6 +375,9 @@ class CustomerService:
     async def orders(self, customer_id: uuid.UUID) -> list[CustomerPurchaseView]:
         profile = await self.profile(customer_id)
         return [purchase for purchase in profile.purchases if purchase.kind == "ORDER"]
+
+    async def risk(self, customer_id: uuid.UUID) -> RiskView:
+        return (await self.profile(customer_id)).metrics.cod_risk
 
     async def _customer(self, customer_id: uuid.UUID) -> Customer:
         customer = await self.session.scalar(

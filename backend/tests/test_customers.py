@@ -91,6 +91,9 @@ async def test_customer_profile_combines_addresses_sales_and_orders(
     assert {item["label"] for item in payload["addresses"]} == {"Home", "Office"}
     assert [item["kind"] for item in payload["purchases"]] == ["ORDER", "SALE"]
     assert payload["payments"][0]["method"] == "CASH"
+    risk = await client.get(f"/api/v1/customers/{customer_id}/risk", headers=headers)
+    assert risk.status_code == 200
+    assert risk.json() == payload["metrics"]["cod_risk"]
 
 
 async def test_customer_profile_is_tenant_scoped(db_client: DatabaseHarness) -> None:
