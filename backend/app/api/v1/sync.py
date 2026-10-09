@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends
 from app.api.deps import SessionDep, require_permission
 from app.models.entities import User
 from app.schemas.catalog import CatalogSnapshot, CatalogVersion, StockSnapshot
-from app.schemas.operations import SyncResult, SyncSaleInput
+from app.schemas.operations import (
+    ConflictResolutionInput,
+    SyncConflictView,
+    SyncResult,
+    SyncSaleInput,
+)
 from app.services.catalog_service import CatalogService
 from app.services.sync_service import SyncService
 
@@ -22,12 +27,22 @@ async def sync_sale(
     return await SyncService(session, user).sync_sale(command)
 
 
-@router.get("/conflicts", response_model=list[dict[str, object]])
+@router.get("/conflicts", response_model=list[SyncConflictView])
 async def sync_conflicts(
     session: SessionDep,
     user: Annotated[User, Depends(require_permission("inventory:read"))],
-) -> list[dict[str, object]]:
+) -> list[SyncConflictView]:
     return await SyncService(session, user).conflicts()
+
+
+@router.post("/conflicts/{conflict_id}/resolve", response_model=SyncConflictView)
+async def resolve_sync_conflict(
+    conflict_id: uuid.UUID,
+    command: ConflictResolutionInput,
+    session: SessionDep,
+    user: Annotated[User, Depends(require_permission("inventory:adjust"))],
+) -> SyncConflictView:
+    return await SyncService(session, user).resolve_conflict(conflict_id, command)
 
 
 @router.get("/status/{client_transaction_id}", response_model=SyncResult)

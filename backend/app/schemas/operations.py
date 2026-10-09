@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -198,6 +199,24 @@ class SyncResult(BaseModel):
     server_record_id: uuid.UUID | None
     idempotent_replay: bool = False
     conflict: bool = False
+
+
+class ConflictResolutionInput(BaseModel):
+    resolution: Literal["ACKNOWLEDGED", "STOCK_RECOUNT_REQUESTED", "RESOLVED_EXTERNALLY"]
+    note: str = Field(min_length=3, max_length=500)
+
+
+class SyncConflictView(BaseModel):
+    id: uuid.UUID
+    sync_transaction_id: uuid.UUID
+    type: str
+    details: dict[str, object]
+    created_at: datetime
+    reviewed: bool
+    reviewed_at: datetime | None = None
+    reviewed_by: uuid.UUID | None = None
+    resolution: str | None = None
+    resolution_note: str | None = None
     message: str | None = None
 
 

@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -14,8 +15,14 @@ from app.models.entities import (
     SyncTransaction,
     User,
 )
-from app.schemas.operations import SyncResult, SyncSaleInput
+from app.schemas.operations import (
+    ConflictResolutionInput,
+    SyncConflictView,
+    SyncResult,
+    SyncSaleInput,
+)
 from app.schemas.sales import OfflineSalePayload
+from app.services.audit_service import add_audit
 from app.services.sales_service import SalesService
 
 
@@ -195,19 +202,66 @@ class SyncService:
             conflict=transaction.status == SyncStatus.CONFLICT,
         )
 
-    async def conflicts(self) -> list[dict[str, object]]:
+    async def conflicts(self) -> list[SyncConflictView]:
         rows = await self.session.scalars(
             select(SyncConflict)
             .where(SyncConflict.organization_id == self.user.organization_id)
             .order_by(SyncConflict.created_at.desc())
         )
-        return [
-            {
-                "id": str(row.id),
-                "type": row.conflict_type,
-                "details": row.details,
-                "created_at": row.created_at.isoformat(),
-                "reviewed": row.reviewed_at is not None,
-            }
-            for row in rows
-        ]
+        return [self._conflict_view(row) for row in rows]
+
+    async def resolve_conflict(
+        self, conflict_id: uuid.UUID, command: ConflictResolutionInput
+    ) -> SyncConflictView:
+        conflict = await self.session.scalar(
+            select(SyncConflict)
+            .where(
+                SyncConflict.id == conflict_id,
+                SyncConflict.organization_id == self.user.organization_id,
+            )
+            .with_for_update()
+        )
+        if conflict is None:
+            raise AppError(
+                "SYNC_CONFLICT_NOT_FOUND", "Sync conflict was not found", status_code=404
+            )
+        if conflict.reviewed_at is not None:
+            if (
+                conflict.resolution == command.resolution
+                and conflict.resolution_note == command.note
+            ):
+                return self._conflict_view(conflict)
+            raise AppError(
+                "SYNC_CONFLICT_ALREADY_RESOLVED",
+                "This conflict has already been resolved",
+                status_code=409,
+            )
+        conflict.reviewed_at = datetime.now(UTC)
+        conflict.reviewed_by = self.user.id
+        conflict.resolution = command.resolution
+        conflict.resolution_note = command.note
+        add_audit(
+            self.session,
+            self.user,
+            "sync_conflict.resolved",
+            "sync_conflict",
+            conflict.id,
+            new_data={"resolution": command.resolution, "note": command.note},
+        )
+        await self.session.commit()
+        return self._conflict_view(conflict)
+
+    @staticmethod
+    def _conflict_view(conflict: SyncConflict) -> SyncConflictView:
+        return SyncConflictView(
+            id=conflict.id,
+            sync_transaction_id=conflict.sync_transaction_id,
+            type=conflict.conflict_type,
+            details=conflict.details,
+            created_at=conflict.created_at,
+            reviewed=conflict.reviewed_at is not None,
+            reviewed_at=conflict.reviewed_at,
+            reviewed_by=conflict.reviewed_by,
+            resolution=conflict.resolution,
+            resolution_note=conflict.resolution_note,
+        )

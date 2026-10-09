@@ -3,7 +3,14 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy import func, select
 
-from app.models.entities import InventoryMovement, Payment, Sale, SyncConflict, SyncTransaction
+from app.models.entities import (
+    AuditLog,
+    InventoryMovement,
+    Payment,
+    Sale,
+    SyncConflict,
+    SyncTransaction,
+)
 from tests.conftest import DatabaseHarness
 from tests.test_api_workflows import login
 
@@ -111,14 +118,16 @@ async def test_offline_oversell_keeps_sale_and_raises_conflict(db_client: Databa
     client = db_client.client
     headers = await owner_headers(client)
     variant_id = await stocked_variant(client, headers, 1)
+    transaction = offline_sale(variant_id, 3)
 
-    response = await client.post(
-        "/api/v1/sync/sales", headers=headers, json=offline_sale(variant_id, 3)
-    )
+    response = await client.post("/api/v1/sync/sales", headers=headers, json=transaction)
+    replay = await client.post("/api/v1/sync/sales", headers=headers, json=transaction)
 
     assert response.status_code == 200
     assert response.json()["status"] == "CONFLICT"
     assert response.json()["conflict"] is True
+    assert replay.json()["server_record_id"] == response.json()["server_record_id"]
+    assert replay.json()["idempotent_replay"] is True
     sale = await client.get(
         f"/api/v1/pos/sales/{response.json()['server_record_id']}", headers=headers
     )
@@ -126,6 +135,51 @@ async def test_offline_oversell_keeps_sale_and_raises_conflict(db_client: Databa
     conflicts = (await client.get("/api/v1/sync/conflicts", headers=headers)).json()
     assert [item["type"] for item in conflicts] == ["INVENTORY_OVERSELL"]
     assert (await stock_of(client, headers, variant_id))["physical"] == -2
+    async with db_client.sessions() as session:
+        assert await session.scalar(select(func.count(Sale.id))) == 1
+        assert await session.scalar(select(func.count(SyncConflict.id))) == 1
+        assert (
+            await session.scalar(
+                select(func.count(InventoryMovement.id)).where(
+                    InventoryMovement.reference_type == "sale"
+                )
+            )
+            == 1
+        )
+
+    resolved = await client.post(
+        f"/api/v1/sync/conflicts/{conflicts[0]['id']}/resolve",
+        headers=headers,
+        json={
+            "resolution": "STOCK_RECOUNT_REQUESTED",
+            "note": "Warehouse will verify the physical count",
+        },
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["reviewed"] is True
+    assert resolved.json()["resolution"] == "STOCK_RECOUNT_REQUESTED"
+    same = await client.post(
+        f"/api/v1/sync/conflicts/{conflicts[0]['id']}/resolve",
+        headers=headers,
+        json={
+            "resolution": "STOCK_RECOUNT_REQUESTED",
+            "note": "Warehouse will verify the physical count",
+        },
+    )
+    assert same.status_code == 200
+    different = await client.post(
+        f"/api/v1/sync/conflicts/{conflicts[0]['id']}/resolve",
+        headers=headers,
+        json={"resolution": "ACKNOWLEDGED", "note": "Trying to overwrite resolution"},
+    )
+    assert different.status_code == 409
+    async with db_client.sessions() as session:
+        assert (
+            await session.scalar(
+                select(func.count(AuditLog.id)).where(AuditLog.action == "sync_conflict.resolved")
+            )
+            == 1
+        )
 
 
 async def test_invalid_sync_payload_is_a_permanent_validation_error(

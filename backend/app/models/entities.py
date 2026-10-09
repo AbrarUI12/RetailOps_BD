@@ -523,6 +523,9 @@ class SyncConflict(Base, TimestampMixin):
     conflict_type: Mapped[str] = mapped_column(String(40))
     details: Mapped[dict[str, Any]] = mapped_column(JSON)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    resolution: Mapped[str | None] = mapped_column(String(40))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
 
 
 class Notification(Base, TimestampMixin):
