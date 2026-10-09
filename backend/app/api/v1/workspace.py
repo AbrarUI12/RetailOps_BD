@@ -1,11 +1,10 @@
 """Shell endpoints: navigation badge counts and command-palette search (plan §10–11)."""
 
-from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, func, or_, select, update
+from sqlalchemy import ColumnElement, func, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.exceptions import AppError
@@ -13,7 +12,6 @@ from app.core.permissions import ROLE_PERMISSIONS
 from app.models.entities import (
     Customer,
     InventoryBalance,
-    Notification,
     Order,
     OrderStatus,
     Product,
@@ -23,6 +21,7 @@ from app.models.entities import (
     SyncConflict,
     User,
 )
+from app.services.notification_service import NotificationService
 from app.utils.phone import normalize_bd_phone
 
 router = APIRouter(tags=["workspace"])
@@ -54,20 +53,13 @@ def _can(user: User, permission: str) -> bool:
     return permission in ROLE_PERMISSIONS[user.role.name]
 
 
-def _unread(user: User) -> tuple[ColumnElement[bool], ...]:
-    return (
-        Notification.organization_id == user.organization_id,
-        Notification.read_at.is_(None),
-        or_(Notification.user_id.is_(None), Notification.user_id == user.id),
-    )
-
-
 @router.get("/workspace/counts", response_model=WorkspaceCounts)
 async def counts(session: SessionDep, user: CurrentUser) -> WorkspaceCounts:
     """Badge numbers for the navigation. Areas the role cannot open are left out (null)."""
+    notifications = NotificationService(session, user)
     result = WorkspaceCounts(
         unread_notifications=await session.scalar(
-            select(func.count(Notification.id)).where(*_unread(user))
+            select(func.count()).select_from(select(1).where(*notifications.unread()).subquery())
         )
         or 0
     )
@@ -102,10 +94,7 @@ async def counts(session: SessionDep, user: CurrentUser) -> WorkspaceCounts:
 
 @router.post("/notifications/read-all", status_code=204)
 async def mark_all_read(session: SessionDep, user: CurrentUser) -> None:
-    await session.execute(
-        update(Notification).where(*_unread(user)).values(read_at=datetime.now(UTC))
-    )
-    await session.commit()
+    await NotificationService(session, user).mark_all_read()
 
 
 @router.get("/search", response_model=list[SearchHit])

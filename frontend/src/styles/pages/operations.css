@@ -25,8 +25,31 @@
 .conflict-lines small { color: var(--text-muted); font-size: var(--text-caption); }
 .stock-difference { text-align: right; font-variant-numeric: tabular-nums; }
 .resolution-summary { background: var(--success-soft); }
-.activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
-.activity-row time { color: var(--text-muted); font-size: var(--text-caption); white-space: nowrap; }
+.activity-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.8fr); align-items: start; gap: var(--space-3); }
+.activity-layout.notifications-only { grid-template-columns: minmax(320px, 720px); }
+.audit-card .card-content, .notifications-card .card-content { padding-top: 0; }
+.audit-toolbar { display: grid; grid-template-columns: 1fr 180px; align-items: end; gap: var(--space-3); margin-bottom: var(--space-4); }
+.audit-list, .activity-notifications { display: grid; border-top: 1px solid var(--border-subtle); }
+.audit-row, .activity-notification { display: grid; width: 100%; min-height: 72px; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-1); color: var(--text); text-align: left; cursor: pointer; background: transparent; border: 0; border-bottom: 1px solid var(--border-subtle); }
+.audit-row { grid-template-columns: 34px 1fr auto; }
+.audit-row:hover, .activity-notification:hover { background: var(--surface-subtle); }
+.audit-row:focus-visible, .activity-notification:focus-visible { outline: 2px solid var(--focus-ring-color); outline-offset: -2px; }
+.audit-action-icon { display: grid; width: 32px; height: 32px; place-items: center; color: var(--brand-strong); background: var(--brand-soft); border-radius: var(--radius-sm); }
+.audit-row > span:nth-child(2), .activity-notification > span:nth-child(2) { display: grid; min-width: 0; gap: 2px; }
+.audit-row small, .activity-notification small { color: var(--text-muted); font-size: var(--text-caption); }
+.audit-row time, .activity-notification time { color: var(--text-soft); font-size: var(--text-caption); white-space: nowrap; }
+.notifications-card .segmented { margin-bottom: var(--space-3); }
+.activity-notification { grid-template-columns: 10px 1fr auto; }
+.activity-notification.unread { background: var(--brand-soft); }
+.activity-notification .notification-dot { align-self: start; margin-top: 6px; }
+.audit-detail { display: grid; gap: var(--space-5); }
+.audit-context { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin: 0; }
+.audit-context > div, .audit-change-set dl > div { display: grid; gap: 2px; padding: var(--space-3); background: var(--surface-subtle); border-radius: var(--radius-sm); }
+.audit-context dt, .audit-change-set dt { color: var(--text-muted); font-size: var(--text-caption); }
+.audit-context dd, .audit-change-set dd { margin: 0; overflow-wrap: anywhere; }
+.audit-change-set h3 { margin: 0 0 var(--space-3); font-size: var(--text-body-lg); }
+.audit-change-set dl { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin: 0; }
+.audit-user-agent { display: grid; gap: var(--space-2); margin: 0; padding-top: var(--space-4); color: var(--text-muted); border-top: 1px solid var(--border-subtle); font-size: var(--text-caption); overflow-wrap: anywhere; }
 .report-metrics { margin-bottom: var(--space-3); }
 .report-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
 .report-grid .card:first-child { grid-column: 1 / -1; }
@@ -91,12 +114,16 @@
 .receive-preview { padding: var(--space-3); background: var(--surface-subtle); border-radius: var(--radius-md); }
 
 @media (max-width: 760px) {
-  .sync-summary, .report-grid, .activity-grid { grid-template-columns: 1fr; }
+  .sync-summary, .report-grid, .activity-layout { grid-template-columns: 1fr; }
   .report-grid .card:first-child { grid-column: auto; }
   .report-filters { align-items: stretch; flex-direction: column; }
   .report-dates { width: 100%; grid-template-columns: 1fr 1fr; }
   .sync-hero { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
   .state-tabs { margin-inline: var(--space-3); }
+  .audit-toolbar { grid-template-columns: 1fr; }
+  .audit-context, .audit-change-set dl { grid-template-columns: 1fr; }
+  .audit-row { grid-template-columns: 34px 1fr; }
+  .audit-row time { grid-column: 2; }
   .page-actions { width: 100%; }
   .page-actions .button { flex: 1; }
   .purchase-dialog { width: 100vw; max-height: 100dvh; }

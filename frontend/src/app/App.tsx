@@ -163,7 +163,14 @@ export function App() {
                     </RequirePermission>
                   }
                 />
-                <Route path="activity" element={<ActivityPage />} />
+                <Route
+                  path="activity"
+                  element={
+                    <RequirePermission permission="product:read">
+                      <ActivityPage />
+                    </RequirePermission>
+                  }
+                />
                 {workspaceRoutes.map((path) => (
                   <Route
                     element={

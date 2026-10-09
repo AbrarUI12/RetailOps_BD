@@ -281,12 +281,23 @@ class NotificationView(BaseModel):
 
 
 class AuditView(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     action: str
     entity_type: str
     entity_id: uuid.UUID | None
     user_id: uuid.UUID | None
+    actor_name: str | None
+    actor_email: str | None
     old_data: dict[str, object] | None
     new_data: dict[str, object] | None
+    request_id: str | None
+    ip_address: str | None
+    user_agent: str | None
     created_at: datetime
+
+
+class AuditPage(BaseModel):
+    items: list[AuditView]
+    page: int
+    page_size: int
+    total: int
