@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 let waitingWorker: ServiceWorker | null = null;
+let reloadRequested = false;
 const listeners = new Set<() => void>();
 
 function announce(worker: ServiceWorker) {
@@ -27,7 +28,10 @@ export function registerServiceWorker() {
   });
   let refreshing = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshing) return;
+    // clients.claim() also emits controllerchange on the very first install. Reload only when the
+    // user accepted a waiting update, otherwise initial page work (including checkout/login) can
+    // be interrupted.
+    if (!reloadRequested || refreshing) return;
     refreshing = true;
     location.reload();
   });
@@ -44,6 +48,10 @@ export function usePwaUpdate() {
   }, []);
   return {
     ready,
-    apply: () => waitingWorker?.postMessage({ type: "SKIP_WAITING" }),
+    apply: () => {
+      if (!waitingWorker) return;
+      reloadRequested = true;
+      waitingWorker.postMessage({ type: "SKIP_WAITING" });
+    },
   };
 }

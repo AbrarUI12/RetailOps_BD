@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+test("first service worker installation claims the page without reloading it", async ({ page }) => {
+  await page.addInitScript(() => {
+    const boots = Number(sessionStorage.getItem("test-boots") ?? "0") + 1;
+    sessionStorage.setItem("test-boots", String(boots));
+  });
+  await page.goto("/login");
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  await page.waitForTimeout(500);
+
+  expect(await page.evaluate(() => sessionStorage.getItem("test-boots"))).toBe("1");
+});
+
 test("sign-in stays keyboard-first and stable on tablet and mobile", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
 
