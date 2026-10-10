@@ -1,10 +1,26 @@
+import re
 import uuid
+from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, TypeAdapter
+
+_EMAIL = TypeAdapter(EmailStr)
+_DEMO_EMAIL = re.compile(r"^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@demo\.local$")
+
+
+def validate_account_email(value: str) -> str:
+    """Keep production email validation strict while supporting plan-defined demo identities."""
+    normalized = value.strip().lower()
+    if _DEMO_EMAIL.fullmatch(normalized):
+        return normalized
+    return str(_EMAIL.validate_python(normalized))
+
+
+AccountEmail = Annotated[str, AfterValidator(validate_account_email)]
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: AccountEmail
     password: str = Field(min_length=8, max_length=128)
 
 
@@ -15,7 +31,7 @@ class UserView(BaseModel):
     branch_id: uuid.UUID
     branch_name: str
     branch_address: str | None = None
-    email: EmailStr
+    email: AccountEmail
     full_name: str
     role: str
     permissions: list[str]
@@ -29,7 +45,7 @@ class AuthResponse(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
+    email: AccountEmail
 
 
 class ResetPasswordRequest(BaseModel):

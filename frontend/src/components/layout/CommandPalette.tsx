@@ -100,7 +100,8 @@ export function CommandPalette() {
       .filter((action) => !normalized || `${action.title} ${action.detail}`.toLowerCase().includes(normalized))
       .map((action) => ({ ...action, id: `action:${action.to}`, group: "Quick actions" }));
     const hits = (term.length >= 2 ? search.data ?? [] : []).map((hit) => ({
-      id: `${hit.kind}:${hit.id}`,
+      // Product search returns one hit per matching variant, so the product ID alone is not unique.
+      id: `${hit.kind}:${hit.id}:${hit.subtitle}`,
       group: HIT_GROUPS[hit.kind],
       title: hit.title,
       detail: hit.subtitle,

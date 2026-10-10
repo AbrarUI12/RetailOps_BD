@@ -48,18 +48,22 @@ describe("application shell", () => {
     useUIStore.setState({ commandOpen: false, sidebarCollapsed: false });
     vi.stubGlobal(
       "fetch",
-      vi.fn((url: string) =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify(
-              url.includes("/workspace/counts")
-                ? { orders_to_action: 4, low_stock: 2, open_conflicts: 1, unread_notifications: 3 }
-                : [],
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
-        ),
-      ),
+      vi.fn((url: string) => {
+        const payload = url.includes("/workspace/counts")
+          ? { orders_to_action: 4, low_stock: 2, open_conflicts: 1, unread_notifications: 3 }
+          : url.includes("/search?")
+            ? [
+                { kind: "product", id: "p1", title: "Cotton Tee · Black / M", subtitle: "TEE-BLK-M", to: "/products?focus=p1" },
+                { kind: "product", id: "p1", title: "Cotton Tee · Black / L", subtitle: "TEE-BLK-L", to: "/products?focus=p1" },
+              ]
+            : [];
+        return Promise.resolve(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }),
     );
   });
 
@@ -101,6 +105,21 @@ describe("application shell", () => {
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("renders separate variant hits from the same product without duplicate keys", async () => {
+    signIn("OWNER");
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    renderShell();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(screen.getByRole("combobox"), "cotton");
+
+    expect(await screen.findByRole("option", { name: /Cotton Tee · Black \/ M/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Cotton Tee · Black \/ L/ })).toBeInTheDocument();
+    expect(consoleError.mock.calls.flat().join(" ")).not.toContain("same key");
+    consoleError.mockRestore();
   });
 
   it("gives phones a More menu with every area and sign-out", async () => {

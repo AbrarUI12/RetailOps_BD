@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "playwright test",
+    "media:demo": "node scripts/record-demo.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

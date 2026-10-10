@@ -16,7 +16,7 @@ from email.message import Message
 from http.cookiejar import CookieJar
 from typing import Any
 
-DEMO_LOGIN = {"email": "owner@retailopsbd.com", "password": "RetailOps123!"}
+DEMO_LOGIN = {"email": "owner@demo.local", "password": "RetailOps123!"}
 
 
 class Smoke:

@@ -3,6 +3,7 @@
 **Offline-first POS & commerce operations platform**
 
 [![CI](https://github.com/AbrarUI12/RetailOps_BD/actions/workflows/ci.yml/badge.svg)](https://github.com/AbrarUI12/RetailOps_BD/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-152%20backend%20%7C%20108%20frontend%20%7C%203%20browser-0F9F78)](#quality-checks)
 
 RetailOps BD is a production-oriented retail operations platform for SMEs in Bangladesh. It covers:
 
@@ -16,6 +17,21 @@ RetailOps BD is a production-oriented retail operations platform for SMEs in Ban
 It keeps selling during internet outages and syncs every offline sale **exactly once** when the connection returns.
 
 `Python` · `FastAPI` · `PostgreSQL` · `SQLAlchemy` · `Redis` · `Celery` · `React` · `TypeScript` · `IndexedDB` · `Motion` · `PWA` · `Docker`
+
+## Product tour
+
+| Live operations dashboard | Offline-capable point of sale |
+| --- | --- |
+| [![Dashboard with Dhaka-day KPIs, revenue trend and stock alerts](docs/media/desktop-dashboard.png)](docs/media/desktop-dashboard.png) | [![POS catalog and checkout workspace](docs/media/desktop-pos.png)](docs/media/desktop-pos.png) |
+
+| Margin and COD reporting | Mobile POS |
+| --- | --- |
+| [![Product margin, inventory, COD and courier reports](docs/media/desktop-reports.png)](docs/media/desktop-reports.png) | [![Responsive POS on a phone](docs/media/phone-pos.png)](docs/media/phone-pos.png) |
+
+- [Watch the 2-minute product walkthrough](docs/media/retailops-demo.webm)
+- [Use the narrated 2–4 minute demo script](docs/demo-script.md)
+- [Browse the API documentation screenshot](docs/media/api-docs.png)
+- [Deploy the complete demo to Render](https://dashboard.render.com/blueprint/new?repo=https://github.com/AbrarUI12/RetailOps_BD)
 
 ## Highlights
 
@@ -75,11 +91,11 @@ docker compose exec frontend npm ci
 
 All demo users share the password `RetailOps123!`:
 
-- `owner@retailopsbd.com`
-- `manager@retailopsbd.com`
-- `cashier@retailopsbd.com`
-- `support@retailopsbd.com`
-- `warehouse@retailopsbd.com`
+- `owner@demo.local`
+- `manager@demo.local`
+- `cashier@demo.local`
+- `support@demo.local`
+- `warehouse@demo.local`
 
 ### Try the offline flow
 
@@ -88,6 +104,8 @@ All demo users share the password `RetailOps123!`:
 3. Sell something. The receipt prints and the header shows the pending count.
 4. Reload the page. The sale is still queued.
 5. Go back online. The **Sync Center** shows it syncing once, and the server sale appears in Reports.
+
+The deterministic seed creates 10 products with 14 variants, opening stock and immutable movements, 120 customers, 320 COD/social orders, 90 POS sales, shipments, returns, alerts and audit history. Running it again does not duplicate the demo tenant.
 
 ## Native development
 
@@ -113,3 +131,7 @@ APP_TEST_DATABASE_URL=postgresql+psycopg://retailops:retailops@localhost:5432/re
 ```
 
 [plan.md](plan.md) is the product and roadmap source of truth. [AGENTS.md](AGENTS.md) records what has been built.
+
+## CV summary
+
+**RetailOps BD — Offline-First POS & Commerce Operations Platform** — Built a production-oriented full-stack retail system using Python, FastAPI, PostgreSQL, SQLAlchemy, Redis, React and TypeScript, supporting barcode POS sales, product variants, inventory ledgers, Facebook/COD orders, customer risk assessment, courier fulfillment, returns and analytics. Designed an IndexedDB offline transaction queue with UUID-based idempotent synchronization, retry handling, durable local receipts, and inventory conflict reconciliation.

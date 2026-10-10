@@ -83,5 +83,5 @@ Every task opens its own engine with `NullPool`, because each Celery task runs i
 
 - **Data:** TanStack Query for server state and Zustand for client state (auth, cart, sync status).
 - **Offline:** Dexie (IndexedDB) holds the catalog cache and the sale queue.
-- **Code splitting:** routes are code-split. POS and Sync Center ship in the entry bundle so they work offline before ever being visited online.
+- **Code splitting:** every operational route, including POS and Sync Center, is loaded on demand. The production service worker precaches every emitted route chunk, so installed devices retain the complete POS and sync workflow offline without making the sign-in shell parse those modules up front.
 - **Service worker:** [frontend/public/sw.js](../frontend/public/sw.js) uses network-first caching for the app shell and never caches `/api`.

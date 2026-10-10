@@ -12,7 +12,7 @@ const DEMO_MODE = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === "tru
 
 export function LoginPage() {
   const { user, login, sessionExpired } = useAuthStore();
-  const [email, setEmail] = useState(DEMO_MODE ? "owner@retailopsbd.com" : "");
+  const [email, setEmail] = useState(DEMO_MODE ? "owner@demo.local" : "");
   const [password, setPassword] = useState(DEMO_MODE ? "RetailOps123!" : "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,7 +51,7 @@ export function LoginPage() {
         <Link className="text-link" to="/forgot-password">Forgot your password?</Link>
         {error ? <div className="form-alert" role="alert">{error}</div> : null}
         <Button aria-busy={busy} disabled={busy} size="lg" type="submit"><LockKeyhole aria-hidden="true" size={17} /> {busy ? "Signing in…" : "Sign in securely"}</Button>
-        {DEMO_MODE ? <small className="demo-credential">Demo workspace: credentials are pre-filled. Try cashier@retailopsbd.com for the cashier view.</small> : null}
+        {DEMO_MODE ? <small className="demo-credential">Demo workspace: credentials are pre-filled. Try cashier@demo.local for the cashier view.</small> : null}
       </form>
     </AuthLayout>
   );
