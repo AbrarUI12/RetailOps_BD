@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/AbrarUI12/RetailOps_BD/actions/workflows/ci.yml/badge.svg)](https://github.com/AbrarUI12/RetailOps_BD/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-152%20backend%20%7C%20108%20frontend%20%7C%204%20browser-0F9F78)](#quality-checks)
+[![Live demo](https://img.shields.io/badge/live_demo-open-0F9F78)](https://retailops-bd.onrender.com)
 
 RetailOps BD is a production-oriented retail operations platform for SMEs in Bangladesh. It covers:
 
@@ -29,6 +30,7 @@ It keeps selling during internet outages and syncs every offline sale **exactly 
 | [![Product margin, inventory, COD and courier reports](docs/media/desktop-reports.png)](docs/media/desktop-reports.png) | [![Responsive POS on a phone](docs/media/phone-pos.png)](docs/media/phone-pos.png) |
 
 - [Watch the 2-minute product walkthrough](docs/media/retailops-demo.webm)
+- [Open the live RetailOps BD demo](https://retailops-bd.onrender.com)
 - [Use the narrated 2–4 minute demo script](docs/demo-script.md)
 - [Browse the API documentation screenshot](docs/media/api-docs.png)
 - [Deploy the complete demo to Render](https://dashboard.render.com/blueprint/new?repo=https://github.com/AbrarUI12/RetailOps_BD)
