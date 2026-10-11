@@ -17,7 +17,6 @@ services:
     # Dockerfile CMD runs scripts/start_api.sh: migrate → optional demo seed → uvicorn with proxy headers.
     healthCheckPath: /health/ready
     autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: APP_ENV
         value: production
