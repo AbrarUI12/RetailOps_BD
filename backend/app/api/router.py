@@ -10,6 +10,7 @@ from app.api.v1.procurement import router as procurement_router
 from app.api.v1.products import router as products_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.sales import router as sales_router
+from app.api.v1.settings import router as settings_router
 from app.api.v1.shipments import router as shipments_router
 from app.api.v1.sync import router as sync_router
 from app.api.v1.workspace import router as workspace_router
@@ -30,4 +31,5 @@ v1_router.include_router(sync_router)
 v1_router.include_router(procurement_router)
 v1_router.include_router(activity_router)
 v1_router.include_router(workspace_router)
+v1_router.include_router(settings_router)
 api_router.include_router(v1_router)

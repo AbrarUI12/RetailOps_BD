@@ -78,6 +78,37 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface OrganizationSettings {
+  id: string;
+  name: string;
+  slug: string;
+  timezone: string;
+}
+
+export interface BranchSettings {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+}
+
+export interface WorkspaceSettings {
+  organization: OrganizationSettings;
+  current_branch: BranchSettings;
+  branches: BranchSettings[];
+}
+
+export interface StaffMember {
+  id: string;
+  full_name: string;
+  email: string;
+  role: "OWNER" | "MANAGER" | "CASHIER" | "SUPPORT" | "WAREHOUSE";
+  branch_id: string;
+  branch_name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface Variant {
   id: string;
   product_id: string;

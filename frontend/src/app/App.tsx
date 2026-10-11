@@ -19,9 +19,6 @@ import { useAuthStore } from "../stores/authStore";
 const DashboardPage = lazy(() =>
   import("../routes/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );
-const WorkspacePage = lazy(() =>
-  import("../routes/WorkspacePage").then((m) => ({ default: m.WorkspacePage })),
-);
 const ProductsPage = lazy(() =>
   import("../routes/ProductsPage").then((m) => ({ default: m.ProductsPage })),
 );
@@ -54,14 +51,15 @@ const PosPage = lazy(() =>
 const SyncPage = lazy(() =>
   import("../routes/SyncPage").then((m) => ({ default: m.SyncPage })),
 );
+const SettingsPage = lazy(() =>
+  import("../routes/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
   },
 });
-
-const workspaceRoutes = ["settings"];
 
 function RoleHome() {
   const user = useAuthStore((state) => state.user);
@@ -176,17 +174,14 @@ export function App() {
                     </RequirePermission>
                   }
                 />
-                {workspaceRoutes.map((path) => (
-                  <Route
-                    element={
-                      <RequirePermission permission="settings:manage">
-                        <WorkspacePage />
-                      </RequirePermission>
-                    }
-                    key={path}
-                    path={path}
-                  />
-                ))}
+                <Route
+                  path="settings"
+                  element={
+                    <RequirePermission permission="settings:manage">
+                      <SettingsPage />
+                    </RequirePermission>
+                  }
+                />
               </Route>
             </Route>
             <Route path="*" element={<Navigate replace to="/dashboard" />} />

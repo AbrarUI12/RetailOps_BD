@@ -3,7 +3,7 @@
 **Offline-first POS & commerce operations platform**
 
 [![CI](https://github.com/AbrarUI12/RetailOps_BD/actions/workflows/ci.yml/badge.svg)](https://github.com/AbrarUI12/RetailOps_BD/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-152%20backend%20%7C%20108%20frontend%20%7C%204%20browser-0F9F78)](#quality-checks)
+[![Tests](https://img.shields.io/badge/tests-156%20backend%20%7C%20113%20frontend%20%7C%204%20browser-0F9F78)](#quality-checks)
 [![Live demo](https://img.shields.io/badge/live_demo-open-0F9F78)](https://retailops-bd.onrender.com)
 
 RetailOps BD is a production-oriented retail operations platform for SMEs in Bangladesh. It covers:
